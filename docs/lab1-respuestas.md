@@ -1,4 +1,4 @@
-1. ¿Cuál es la diferencia entre Working Directory, Staging Area y Local Repository? Da un ejemplo de unarchivo pasando por las tres.
+1. ¿Cuál es la diferencia entre Working Directory, Staging Area y Local Repository? Da un ejemplo de un archivo pasando por las tres.
 Working Directory: es la carpeta donde editamos los archivos.
 Staging Area: puntero a exactamente qué archivos irán en el próximo guardado.
 Local Repository: es el archivo histórico, la carpeta .git donde se guardan los commits.
@@ -10,12 +10,10 @@ No, ese cambio no aparecerá en el próximo commit. El comando git commit única
 No salían en git solo versiona archivos no las carpetas. Por eso lo de .gitkeep dentro de la carpeta para forzarlo.
 
 4. Explica con tus palabras qué es HEAD.
-El HEAD nos dice en qué commit estamos y en qué rama estamos.
+El HEAD nos dice en qué commit y en qué rama estamos.
 
 5. ¿Qué diferencia hay entre crear una branch con git switch -c y crear una carpeta nueva con mkdir?¿Cómo lo comprobamos en la Parte G?
 Mkdir crea una carpeta nueva. En cambio, git switch -c crea una rama , y una rama no es una carpeta, sino el historial de commits dentro de la infraestructura de .git.Lo comprobamos en el ejercicio G porque, al crear la nueva rama y hacer ls -la, estaban exactamente los mismos archivos  y directorios de antes, sin ninguna carpeta nueva.
-
-
 6. Durante el conflicto de la Parte H, ¿qué representaba el contenido entre <<<<<<< HEAD y =======? ¿Yentre ======= y >>>>>>>?
 El bloque debajo de < < < < HEAD y hasta ===== representaba la versión del código que ya teníamos nosotros en nuestra rama actual main. El contenido entre ==== y > > > fix/readme-subtitle era la versión que venía de la otra rama que estábamos intentado fusionar.
 7. ¿Por qué NO se debe hacer git commit --amend sobre un commit que ya se subió con git push?
