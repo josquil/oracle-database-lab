@@ -1,0 +1,223 @@
+== Ejecutando V000 (Usuarios y Tablespaces) ==
+
+SQL*Plus: Release 23.26.3.0.0 - Production on Sat Oct 24 20:32:29 2026
+Version 23.26.3.0.0
+
+Copyright (c) 1982, 2026, Oracle.  All rights reserved.
+
+
+Connected to:
+Oracle AI Database 26ai Free Release 23.26.3.0.0 - Develop, Learn, and Run for Free
+Version 23.26.3.0.0
+
+SQL> SQL> SQL> 
+Session altered.
+
+SQL> SQL> 
+Tablespace created.
+
+SQL>   2  
+User created.
+
+SQL> 
+Grant succeeded.
+
+SQL> SQL> 
+Tablespace created.
+
+SQL>   2  
+User created.
+
+SQL> 
+Grant succeeded.
+
+SQL> SQL> 
+Tablespace created.
+
+SQL>   2  
+User created.
+
+SQL> 
+Grant succeeded.
+
+SQL> SQL> 
+Tablespace created.
+
+SQL>   2  
+User created.
+
+SQL> 
+Grant succeeded.
+
+SQL> SQL> 
+Tablespace created.
+
+SQL>   2  
+User created.
+
+SQL> 
+Grant succeeded.
+
+SQL> SQL> == Verificacion: usuarios de negocio ==
+SQL>   2  
+USERNAME
+--------------------------------------------------------------------------------
+DEFAULT_TABLESPACE	       ACCOUNT_STATUS
+------------------------------ --------------------------------
+ADMIN_ACADEMIA
+TBS_ACADEMIA		       OPEN
+
+ADMIN_CLINICA
+TBS_CLINICA		       OPEN
+
+ADMIN_FINTECH
+TBS_FINTECH		       OPEN
+
+
+USERNAME
+--------------------------------------------------------------------------------
+DEFAULT_TABLESPACE	       ACCOUNT_STATUS
+------------------------------ --------------------------------
+ADMIN_LOGISTICA
+TBS_LOGISTICA		       OPEN
+
+ADMIN_RETAIL
+TBS_RETAIL		       OPEN
+
+
+SQL> Disconnected from Oracle AI Database 26ai Free Release 23.26.3.0.0 - Develop, Learn, and Run for Free
+Version 23.26.3.0.0
+== Ejecutando V001 (Tablas de negocio) ==
+
+SQL*Plus: Release 23.26.3.0.0 - Production on Sat Oct 24 20:32:35 2026
+Version 23.26.3.0.0
+
+Copyright (c) 1982, 2026, Oracle.  All rights reserved.
+
+
+Connected to:
+Oracle AI Database 26ai Free Release 23.26.3.0.0 - Develop, Learn, and Run for Free
+Version 23.26.3.0.0
+
+SQL> SQL> SQL> 
+Session altered.
+
+SQL> SQL> 
+Session altered.
+
+SQL>   2    3    4    5    6    7    8    9  
+Table created.
+
+SQL>   2    3    4    5  
+Table created.
+
+SQL>   2    3    4    5    6    7  
+Table created.
+
+SQL> 
+Index created.
+
+SQL> 
+Index created.
+
+SQL> SQL> 
+Session altered.
+
+SQL>   2    3    4    5    6    7  
+Table created.
+
+SQL>   2    3    4    5    6  
+Table created.
+
+SQL>   2    3    4    5    6    7    8    9   10  
+Table created.
+
+SQL> 
+Index created.
+
+SQL> 
+Index created.
+
+SQL> SQL> 
+Session altered.
+
+SQL>   2    3    4    5    6  
+Table created.
+
+SQL>   2    3    4    5    6    7  
+Table created.
+
+SQL>   2    3    4    5    6    7  
+Table created.
+
+SQL> 
+Index created.
+
+SQL> 
+Index created.
+
+SQL> 
+Index created.
+
+SQL> SQL> 
+Session altered.
+
+SQL>   2    3    4    5  
+Table created.
+
+SQL>   2    3    4    5    6    7    8    9  
+Table created.
+
+SQL>   2    3    4    5    6  
+Table created.
+
+SQL> 
+Index created.
+
+SQL> SQL> 
+Session altered.
+
+SQL>   2    3    4    5    6    7    8  
+Table created.
+
+SQL>   2    3    4    5    6    7    8    9  
+Table created.
+
+SQL> 
+Index created.
+
+SQL> 
+Index created.
+
+SQL> 
+Index created.
+
+SQL> SQL> == Verificacion: tablas por esquema ==
+SQL>   2  
+OWNER
+--------------------------------------------------------------------------------
+    TABLAS
+----------
+ADMIN_ACADEMIA
+	 3
+
+ADMIN_CLINICA
+	 3
+
+ADMIN_FINTECH
+	 2
+
+
+OWNER
+--------------------------------------------------------------------------------
+    TABLAS
+----------
+ADMIN_LOGISTICA
+	 3
+
+ADMIN_RETAIL
+	 3
+
+
+SQL> Disconnected from Oracle AI Database 26ai Free Release 23.26.3.0.0 - Develop, Learn, and Run for Free
+Version 23.26.3.0.0
