@@ -1,0 +1,2 @@
+== 1. Java (ORDS requiere 17 o 21) ==
+scripts/deployment/env/12-instalar-ords.sh: line 9: java: command not found
