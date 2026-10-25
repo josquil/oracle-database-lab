@@ -1,0 +1,21 @@
+== Últimas 20 líneas del log de arranque ==
+--ATTENTION--
+Time drifted forward by (378130816) micro seconds at 1792872145 whereas allowed drift is 5000000
+2026-10-24T20:02:27.967522+00:00
+--ATTENTION--
+Time stalled at 2473794240
+2026-10-24T20:02:29.337802+00:00
+--ATTENTION--
+Time stall, backward drift ended at 1792872149 with drift 2000000
+2026-10-24T20:02:56.502319+00:00
+--ATTENTION--
+Time drifted backward by (1000000) micro seconds at 1792872177 whereas allowed drift is 5000000
+2026-10-24T20:02:58.572710+00:00
+--ATTENTION--
+Time stall, backward drift ended at 1792872178 with drift 1000000
+2026-10-24T20:03:24.317951+00:00
+--ATTENTION--
+Time stalled at 2530794240
+2026-10-24T20:03:25.378598+00:00
+--ATTENTION--
+Time stall, backward drift ended at 1792872205 with drift 1000000
