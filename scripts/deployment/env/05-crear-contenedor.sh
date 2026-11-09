@@ -14,7 +14,6 @@ fi
 docker run -d \
   --name "$CONT_NAME" \
   -p "$PORT_DB":1521 \
-  -p "$PORT_ORDS":8181 \
   -e ORACLE_PWD="$ORACLE_PWD" \
   -e APP_USER=alumno \
   -e APP_USER_PASSWORD="$APP_USER_PWD" \
