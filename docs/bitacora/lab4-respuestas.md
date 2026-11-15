@@ -161,3 +161,173 @@ PMON (Process Monitor) limpia tras procesos fallidos; por ejemplo, si un usuario
 Por el principio de mínimo privilegio. SYSTEM tiene poder absoluto y un error tecleando podría borrar datos de negocio. C##OPS_RO es un perfil de Solo Lectura. No puede insertar, borrar datos, modificar esquemas, ni otorgar privilegios a otros, lo que lo hace perfecto y seguro para monitorización.
   22. ¿Qué dos vías de exposición de contraseñas corrige este laboratorio respecto al Lab 3?
 Corrige la exposición en el código fuente de los scripts SQL (evitando guardar texto plano usando IDENTIFIED BY VALUES o bloqueando las cuentas en V003), y corrige la exposición de variables de entorno en el repositorio ignorando el archivo config/.env mediante .gitignore para que no se suba a GitHub.
+
+
+## Adaptación a los prerrequisitos del Lab 5 — Issue #5
+
+La entrega original del Lab 4 fue fusionada mediante el PR #4 y superó
+10-verificacion-final.sh. Posteriormente identifiqué que el PDF del Lab 5
+presupone un kit ampliado del Lab 4. Este apartado documenta las actividades
+adicionales realizadas en la rama chore/5-lab4-prerequisites-for-lab5.
+
+### Parte 11 — Archivos y acceso de solo lectura al alert log
+
+Concedí a C##OPS_RO el permiso SELECT sobre SYS.V_$DIAG_ALERT_EXT.
+La consulta de privilegios mostró COMMON = YES y confirmé el acceso
+ejecutando 11-archivos.sql mediante ro.sh.
+
+La inspección SQL mostró 16 datafiles, dos control files y tres miembros
+de redo de 200 MB cada uno. Los cinco datafiles de negocio estaban bajo
+/opt/oracle/oradata/FREE/FREEPDB1/.
+
+Comprobé también que las rutas del SPFILE y del password file se resolvían
+bajo /opt/oracle/oradata/dbconfig/FREE/dbs/. En cambio, el script de Linux
+indicó que /opt/oracle/diag estaba en la capa del contenedor, no dentro
+del volumen.
+
+Evidencias:
+- script/20261115T155526Z_11-ampliar-ops-ro.script.log
+- spool/20261115T174408Z_11-archivos.spool.log
+- script/20261115T174651Z_11-archivos-so.script.log
+
+### Parte 12 — Del tablespace a la fila
+
+Localicé al estudiante 101 mediante su ROWID AAAR20AAAAAAAMMAAF.
+La consulta lo situó en el archivo 16 (academia01.dbf), bloque 780
+y posición 5. El identificador del objeto de datos fue 73140.
+
+El volcado confirmó el bloque con la cabecera 0x0000030c y mostró
+tab 0, row 5. Los bytes del estado ACTIVO coincidieron entre DUMP()
+y la columna 5 de la traza: 41 43 54 49 56 4f.
+
+El ejecutor guardó una traza completa de 2862 líneas.
+
+Evidencias:
+- script/20261115T175523Z_12-bloque.script.log
+- config/20261115T175523Z_12-volcado-bloque.trc.txt
+
+### Copia preventiva antes del banco de pruebas
+
+Creé la copia lab4-pre-capacidad tras un SHUTDOWN IMMEDIATE.
+El inventario no detectó archivos de la base fuera del volumen.
+Al terminar, la sonda confirmó CDB y PDB en READ WRITE.
+
+La copia quedó en backups/20261115T182521Z_lab4-pre-capacidad,
+con un tamaño mostrado de 669M. Comprobé SHA256SUMS y todos
+los archivos devolvieron OK. Esta verificación de integridad no
+equivale a haber probado una restauración.
+
+Evidencia:
+- script/20261115T182509Z_pre-capacidad-backup.script.log
+
+### Parte 13 — Capacidad y coste de las lecturas
+
+ACA_ESTUDIANTES tenía 20000 filas y una longitud media estadística
+de 76 bytes. El segmento tenía 256 bloques asignados y las estadísticas
+indicaban 244 bloques bajo la HWM. El recuento directo encontró
+231 bloques con filas y una media de 86,6 filas por bloque.
+
+Los modelos del script estimaron 95 y 93 filas por bloque. Estos
+cálculos aproximados no coincidieron exactamente con la distribución
+real y no deben confundirse con los bloques asignados al segmento.
+
+En el banco de 400000 filas medí:
+- 4 lecturas lógicas por búsqueda en caliente.
+- 6,23 microsegundos de CPU por lectura lógica.
+- 5464 lecturas físicas en la prueba aleatoria.
+- 26,9 microsegundos por lectura en la estimación aleatoria.
+- 4595 bloques en 53 peticiones durante el recorrido completo.
+- Un umbral estimado por el modelo del 0,97 % de las filas.
+
+El umbral es una predicción, no una curva de selectividades medida.
+Además, FLUSH BUFFER_CACHE no vacía la caché del sistema operativo:
+no interpreto la medida aleatoria como latencia pura del dispositivo.
+
+Evidencia:
+- script/20261115T183211Z_13-capacidad.script.log
+
+### Parte 14 — Migración y encadenamiento de filas
+
+Al ampliar una de cada cinco filas de MIGRA, CHAIN_CNT pasó
+de 0 a 1000 sobre 5000 filas: un 20 %. La detección individual
+también enumeró 1000 filas.
+
+En 1000 búsquedas por clave medí 200 accesos continuados
+y 3200 lecturas lógicas, una media de 3,2 por búsqueda.
+El volcado de la fila 2200 mostró una cabeza sin columnas
+y un puntero nrid.
+
+La tabla ANCHA mostró CHAIN_CNT = 1 después de insertar una fila
+con tres valores de 4000 caracteres y otra fila corta.
+
+Tras MOVE PCTFREE 20, CHAIN_CNT de MIGRA volvió a 0.
+El índice quedó UNUSABLE y recuperó el estado VALID después
+del REBUILD. El script terminó eliminando el usuario de pruebas
+y el tablespace; la consulta final devolvió TBS_LAB4_RESTANTES = 0.
+
+Evidencia:
+- script/20261115T183432Z_14-filas-migradas.script.log
+
+### Parte 15 — Autopsia de la instancia
+
+La autopsia mostró FREE en OPEN/ACTIVE y la CDB en READ WRITE,
+como PRIMARY y en ARCHIVELOG. FREEPDB1 estaba abierta en lectura
+y escritura. La FRA seguía sin configurar.
+
+La consulta de índices no detectó índices no válidos en los esquemas
+de negocio. La consulta de concesiones del rol DBA no devolvió
+cuentas no mantenidas por Oracle.
+
+El resumen del alert log registró cinco mensajes con códigos ORA-
+en las últimas 24 horas: cuatro ORA-00800 y uno mostrado como
+ORA-959. Su clasificación queda pendiente de revisar los mensajes
+completos; no los considero automáticamente ruido conocido.
+
+Evidencia:
+- spool/20261115T183837Z_15-autopsia-instancia.spool.log
+
+### Verificación ampliada
+
+Después de las actividades adicionales, 16-verificacion-final.sh
+terminó en TODO OK. Confirmó sus comprobaciones del estado de la base,
+la ausencia de los objetos de prueba y la existencia de evidencias
+00 a 15.
+
+Este resultado no sustituye la revisión del contenido de las evidencias
+ni implica que todos los prerrequisitos del Lab 5 estén ya cerrados.
+
+Evidencia:
+- script/20261115T184557Z_16-verificacion-final.script.log
+
+
+### Reejecución de los informes con control de errores
+
+Añadí a 11-archivos.sql y 15-autopsia-instancia.sql las instrucciones
+WHENEVER OSERROR EXIT FAILURE ROLLBACK y
+WHENEVER SQLERROR EXIT FAILURE ROLLBACK, antes de generar la marca
+temporal y abrir el spool.
+
+Reejecuté ambos informes mediante scripts/ops/ro.sh. El informe de
+archivos llegó hasta la sección 6 y el de autopsia hasta la sección 10.
+Confirmé un código de salida 0 para 15-autopsia-instancia.sql.
+No quedó registrado el código de salida de 11-archivos.sql.
+
+Las nuevas salidas mantienen pendiente la revisión de los mensajes ORA
+del alert log. El informe de archivos también mostró avisos Time stalled
+y backward drift, cuya interpretación queda pendiente.
+
+Conservo las evidencias originales y añado las de esta reejecución:
+- spool/20261115T191642Z_11-archivos.spool.log
+- spool/20261115T191714Z_15-autopsia-instancia.spool.log
+
+### Revisión detallada del alert log
+
+La consulta de diagnóstico terminó con código 0. Identifiqué cuatro
+ORA-00800 con Set Priority Failed en VKTM y LGWR, y un ORA-959
+durante DROP TABLESPACE IF EXISTS tbs_lab4 INCLUDING CONTENTS AND DATAFILES.
+
+También observé avisos recurrentes Time stalled / backward drift.
+No he demostrado su causa ni aplicado cambios de prioridades o reloj.
+Los registro como incidencias pendientes de diagnóstico del entorno,
+no como errores resueltos ni como fallos de ejecución de los informes.
+
