@@ -435,6 +435,28 @@ Pendiente.
 
 ## 2. Retos y puntos de control
 
+#### Simulacro A — Caída de instancia
+
+La instancia se detuvo mediante SHUTDOWN ABORT y recuperó
+automáticamente al arrancar.
+
+Tras el arranque:
+- La fila 102 conservó EGRESADO, cambio confirmado antes de la caída.
+- La fila 103 mostró ACTIVO: el cambio no confirmado se deshizo.
+
+El alert log registró Beginning crash recovery, lectura de
+1920 KB de redo, 326 bloques de datos que necesitaban recuperación,
+aplicación de 1,13 MB de redo y Completed crash recovery.
+La instancia abrió con la secuencia de log 24.
+
+El script ejecutó después la reparación de la fila 102 a ACTIVO.
+Código de salida: 0.
+
+No se observó pérdida del cambio confirmado de control:
+RPO observado = 0 para la transacción comprobada.
+
+RTO: pendiente de obtener de las marcas de tiempo de la evidencia.
+
 ### Parte B — Filas por bloque de PEDIDO
 
 Enunciado: calcular con DBMS_ROWID.ROWID_BLOCK_NUMBER cuántas filas
@@ -464,6 +486,38 @@ El resultado observado es compatible con ello, aunque el recuento
 por sí solo no identifica la causa concreta de cada bloque.
 
 Evidencia: evidencia/script/<nombre-del-log-01-bfr-pedido>
+
+#### Simulacro B — Pérdida de un control file
+
+Se realizó una parada limpia y se eliminó:
+`/opt/oracle/oradata/FREE/control03.ctl`.
+
+El siguiente STARTUP inició la instancia, pero no pudo montar
+la base. Mostró ORA-00205 y V$INSTANCE.STATUS = STARTED:
+la instancia había alcanzado NOMOUNT, no MOUNT.
+
+El alert log identificó el archivo ausente mediante ORA-00202
+y mostró ORA-27037, al no poder obtener su estado en el sistema
+operativo.
+
+Con la base sin montar se repuso control03.ctl copiando otra
+copia sana, conservada tras la misma parada limpia.
+Después se completaron ALTER DATABASE MOUNT y ALTER DATABASE OPEN.
+
+V$CONTROLFILE volvió a mostrar las tres copias.
+La comprobación final indicó:
+docker=healthy y cdb/pdb=READWRITE/READWRITE.
+Código de salida: 0.
+
+No fue necesario restaurar datafiles ni volver a una copia
+histórica de la base. La reparación utilizó la multiplexación.
+
+No se esperaba pérdida de transacciones confirmadas, al conservar
+copias actuales del control file y no retroceder los datos.
+Esta salida no incluye una comprobación específica de filas
+para medir de forma independiente esa ausencia de pérdida.
+
+RTO: pendiente de obtener de las marcas de tiempo disponibles.
 
 
 ### Parte C — Interpretación de los gráficos iniciales
@@ -533,6 +587,45 @@ claves influyen en su estructura y ocupación.
 
 El reto terminó con código de salida 0.
 
+#### Simulacro C — Borrado de tabla y restauración completa
+
+El script creó previamente una copia de 1,3 GB:
+
+`backups/20261116T202648Z_lab5-pre-simulacro`.
+
+Antes del fallo, ACA_MATRICULAS contenía 60000 filas.
+
+En la primera prueba se ejecutó DROP TABLE sin PURGE.
+La tabla y sus índices aparecieron en la papelera, y
+FLASHBACK TABLE ... TO BEFORE DROP recuperó la tabla.
+El recuento posterior volvió a ser de 60000 matrículas.
+
+En la segunda prueba se ejecutó DROP TABLE ... PURGE.
+La consulta posterior devolvió ORA-00942, resultado esperado:
+la tabla ya no existía y no podía recuperarse mediante la papelera.
+
+Se restauró la copia completa lab5-pre-simulacro.
+FREEPDB1 volvió a READ WRITE y ACA_MATRICULAS recuperó
+sus 60000 filas.
+
+Métricas:
+- Tiempo de restauración medido por el script: 129 segundos.
+- Ventana entre la copia y el fallo: 4 segundos.
+- Código de salida: 0.
+
+Los 129 segundos corresponden al tramo de restauración cronometrado,
+no necesariamente a todo el tiempo transcurrido desde el borrado.
+
+La restauración devolvió toda la base al estado de la copia:
+cualquier cambio posterior a ella habría quedado fuera del
+estado recuperado. La ventana de 4 segundos expresa esa exposición
+temporal; no cuantifica transacciones de negocio realmente perdidas.
+
+La prueba demuestra la diferencia entre recuperar una tabla
+con la papelera y restaurar toda la base por el daño de una
+sola tabla. La segunda opción afecta también al estado de las
+demás tablas.
+
 ### Parte D — ¿Haría cubriente el índice de Q9?
 
 No añadiría columnas a IX_PED_FECHA para esta consulta: recuperar
@@ -546,6 +639,61 @@ La prueba devolvió 20 filas, sin lecturas físicas, y terminó con código 0.
 
 Esta decisión se basa en el bajo coste medido; no he creado ni medido
 un índice cubriente alternativo para Q9.
+
+#### Simulacro D — Pérdida y recuperación de un datafile
+
+El camino observado requirió reabrir FREEPDB1:
+tras reparar el archivo, la PDB estaba MOUNTED y el script
+ejecutó su apertura. La comprobación posterior mostró READ WRITE.
+
+Después de RESTORE y RECOVER, la fila 104 apareció en EGRESADO,
+valor confirmado después de la copia RMAN. Por tanto, el estado
+recuperado incorporó redo posterior al backup.
+
+El RPO observado para la transacción de control fue 0:
+el cambio confirmado sobrevivió a la pérdida del datafile.
+
+Métricas del script:
+- Archivo fuera de línea hasta en línea: 18 segundos.
+- Tiempo desde el fallo: 19 segundos.
+- Código de salida: 0.
+
+El script ejecutó después la devolución de la fila 104 a ACTIVO.
+El recuento final de ACA_ESTUDIANTES fue de 20000 filas.
+
+A diferencia del simulacro C, que restauró toda la base en
+129 segundos y volvió al estado de la copia, este procedimiento
+recuperó el archivo afectado e incorporó los cambios posteriores
+mediante redo.
+
+La comparación temporal tiene un límite: los 129 segundos de C
+corresponden al tramo de restauración, mientras que D ofrece
+tanto el tramo de reparación (18 segundos) como el tiempo
+desde el fallo (19 segundos).
+El archivo afectado fue el datafile 16:
+`/opt/oracle/oradata/FREE/FREEPDB1/academia01.dbf`.
+
+El backup RMAN terminó antes del fallo, con etiqueta
+LAB5_SIMULACRO_D, y se guardó en la FRA. También se generó
+un autobackup.
+
+El diagnóstico mostró:
+- ORA-01116: no se pudo abrir el archivo de base de datos.
+- ORA-01110: identificó el número 16 y su ruta.
+- ORA-27041: fallo al abrir el archivo en el sistema operativo.
+- Linux Error 2: el archivo no existía.
+
+Antes de reparar, FREEPDB1 ya estaba MOUNTED.
+El script indicó el camino de cierre por fallo de medios
+asociado a ORA-63999; el fragmento de alert log mostrado
+no incluye directamente ese código.
+
+RMAN restauró el datafile 16 en su ruta y completó
+media recovery. Después se puso el archivo en línea y
+se abrió de nuevo FREEPDB1.
+
+La consulta final mostró READ WRITE y la fila 104 en EGRESADO,
+confirmando la recuperación del cambio posterior al backup.
 
 ### Parte E — Curva del punto de equilibrio
 
@@ -1059,6 +1207,48 @@ La prueba mostró actividad y buffers sucios pese a asignar el
 mismo valor: un UPDATE sin cambio lógico no debe suponerse gratuito.
 
 La ejecución terminó con código 0.
+
+### Parte O — Comparación y retrospectiva de los simulacros
+
+| Simulacro | Recuperación comprobada | Tiempo observado | Pérdida de datos |
+|---|---|---|---|
+| A: caída de instancia | Arranque y recuperación automática con redo y undo | No medido con la evidencia revisada | El cambio confirmado de la fila 102 sobrevivió; el no confirmado de la 103 se deshizo |
+| B: control file perdido | Reposición desde una copia sana y MOUNT/OPEN | No medido con la evidencia revisada | No se retrocedieron los datos; no hubo una comprobación específica de transacciones |
+| C: tabla borrada con PURGE | Restauración completa de la copia previa | 129 s en el tramo de restauración | Ventana de exposición de 4 s desde la copia; no se cuantificaron transacciones de negocio perdidas |
+| D: datafile perdido | RESTORE y RECOVER del archivo 16; reapertura de FREEPDB1 | 18 s de reparación y 19 s desde el fallo | RPO observado 0 para el cambio de control de la fila 104 |
+
+Los tiempos de A y B quedan como una limitación de la medición:
+no los deduzco de los nombres de los archivos ni de la duración
+de otros simulacros. La mejora es registrar explícitamente
+la hora del fallo y la de recuperación verificada del servicio.
+
+#### Hallazgos y mejoras propuestas
+
+- A: una confirmación puede sobrevivir aunque los bloques de datos
+  aún necesiten recuperación. El alert log mostró 326 bloques que
+  requerían recuperación. Mejoraría el procedimiento añadiendo
+  marcas de tiempo y una comprobación explícita tras la reparación
+  final de la fila 102.
+
+- B: conservar otras dos copias del control file no permitió
+  completar MOUNT mientras faltaba una ruta configurada.
+  Mejoraría la captura de evidencias guardando las horas de fallo
+  y reapertura, además del diagnóstico del archivo ausente.
+
+- C: recuperar una sola tabla mediante una copia completa exigió
+  restaurar toda la base durante 129 segundos. Mejoraría el
+  procedimiento evaluando una recuperación de tabla con RMAN
+  cuando sea viable, para evitar retroceder el resto de la base.
+
+- D: la PDB estaba MOUNTED y hubo que reabrirla después de recuperar
+  el archivo. El cambio posterior al backup sobrevivió gracias
+  al redo. Mantendría como comprobaciones obligatorias el estado
+  READ WRITE, la consulta funcional y la ausencia de errores
+  pendientes antes de cerrar el incidente.
+
+Los cuatro scripts terminaron con código 0.
+La copia completa del simulacro C y la recuperación RMAN de D
+demostraron restauraciones reales, no solo creación de backups.
 
 ## 3. Simulacro de examen S1–S26
 
