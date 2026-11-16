@@ -133,21 +133,96 @@ Pendiente.
 
 #### 6. Elige tres pruebas de la Parte D y explica, con las lecturas lógicas medidas, por qué un tipo de índice gana al otro.
 
-Pendiente.
+He elegido tres comparaciones de mi evidencia 03:
+
+| Prueba | Alternativa inicial | Alternativa final | Lecturas lógicas |
+|---|---|---|---|
+| Q13: búsqueda por DNI | Sin índice | Índice único UX_CLI_DNI | 1486 → 3 |
+| Q7: historial del cliente | IX_PED_CLIENTE | Compuesto / cubriente | 15 → 7 → 3 |
+| Q14: combinación de filtros | Sin bitmaps | Cuatro índices bitmap | 4073 → 528 |
+
+En Q13, el plan pasó de TABLE ACCESS FULL a INDEX UNIQUE SCAN
+con acceso a la tabla por ROWID. Además de acelerar la búsqueda,
+el índice rechazó el DNI duplicado mediante ORA-00001.
+
+En Q7, el índice inicial necesitaba acceder a la tabla y ordenar
+las filas. El compuesto (id_cliente, fecha_pedido) eliminó el SORT
+y redujo las lecturas de 15 a 7. El cubriente incluyó todas las
+columnas solicitadas y evitó también acceder a la tabla: 3 lecturas.
+Su coste en espacio fue de 40 MB, frente a los 18 MB de IX_PED_CLIENTE.
+
+En Q14, el plan combinó los cuatro bitmaps mediante BITMAP AND
+antes de acceder a la tabla. Las lecturas bajaron de 4073 a 528.
+Esta medida corresponde al experimento de consulta; no demuestra
+que sea la mejor opción para una carga con escrituras concurrentes.
+
+El script terminó con código 0 y dejó 7 índices en TiendaSur
+después de eliminar los objetos experimentales.
 
 ### Partes E y F — Agrupamiento, equilibrio y sargabilidad
 
-#### 7. ¿Por qué IX_PED_FECHA tiene un clustering factor cercano al número de bloques e IX_PED_CLIENTE cercano al de filas? ¿Lo arreglaría un REBUILD?
+### 7. ¿Por qué IX_PED_FECHA tiene un clustering factor cercano al número de bloques e IX_PED_CLIENTE cercano al de filas? ¿Lo arreglaría un REBUILD?
 
-Pendiente.
+PEDIDO tiene 1000000 filas y 5320 bloques según las estadísticas.
+IX_PED_FECHA tiene CF = 5220, mientras que IX_PED_CLIENTE tiene
+CF = 999041. El cálculo directo confirmó ambos valores.
 
-#### 8. Según tu curva de la Parte E, ¿a partir de qué porcentaje deja de compensar cada índice? Compáralo con la fórmula de la Unidad 3.
+La carga dejó las filas físicamente ordenadas por fecha, por lo que
+recorrer IX_PED_FECHA permite recuperar filas consecutivas del índice
+en pocos bloques de tabla. Los clientes están repartidos: al recorrer
+IX_PED_CLIENTE se cambia de bloque de tabla casi en cada entrada.
 
-Pendiente.
+El CF cuenta cambios de bloque durante el recorrido ordenado,
+no solamente bloques únicos: un mismo bloque puede volver a visitarse.
 
-#### 9. Explica por qué Q4b (Gonz%) usa el índice y aun así lee más bloques que un recorrido completo.
+Un REBUILD del índice no reordena las filas de la tabla y, por tanto,
+no corrige ese mal agrupamiento. Reordenar la tabla podría favorecer
+el acceso por cliente, pero perjudicar el orden por fecha.
 
-Pendiente.
+### 8. Según tu curva de la Parte E, ¿a partir de qué porcentaje deja de compensar cada índice? Compáralo con la fórmula de la Unidad 3.
+
+El recorrido completo costó 5232 lecturas lógicas en todas las pruebas.
+
+| Comparación | Último punto favorable al índice | Primer punto desfavorable |
+|---|---|---|
+| CF malo | 0,5 %: 4875 lecturas | 1 %: 9920 lecturas |
+| CF bueno | 50 %: 3938 lecturas | 100 %: 7875 lecturas |
+
+Por tanto, el cruce medido queda entre el 0,5 % y el 1 % para
+el índice con CF malo, y entre el 50 % y el 100 % para el de CF bueno.
+No he medido el porcentaje exacto dentro de esos intervalos.
+
+Con bfr = 188 y suponiendo igual coste por lectura, la fórmula
+predice 1/188 = 0,53 %, compatible con el intervalo del CF malo.
+Si se supone c_sec/c_aleat = 1/5, la predicción baja al 0,11 %.
+Esta segunda cifra es un supuesto de costes, no una latencia medida
+en esta prueba.
+
+El optimizador eligió el índice con CF malo hasta el 0,1 % y ya
+eligió recorrido completo al 0,2 %. Su cambio queda entre esos
+dos puntos y ocurre antes del cruce de lecturas lógicas observado.
+El coste estimado por el optimizador no equivale simplemente al
+número de lecturas lógicas de esta ejecución en caliente.
+
+### 9. Explica por qué Q4b (Gonz%) usa el índice y aun así lee más bloques que un recorrido completo.
+
+Q4b devolvió 2056 filas y realizó 2024 lecturas lógicas mediante
+INDEX RANGE SCAN sobre IX_CLI_APELLIDOS y acceso a CLIENTE por ROWID.
+El recorrido completo de Q4a realizó 1523 lecturas lógicas.
+
+El prefijo Gonz% permite localizar un rango en el índice, pero después
+hay que recuperar las columnas solicitadas en los bloques de la tabla.
+Si esas filas están dispersas, esos accesos pueden acumular más lecturas
+que un recorrido completo.
+
+Usar un índice no garantiza menos lecturas. En esta ejecución Q4b
+tardó menos, pero ese tiempo aislado no demuestra que su acceso sea
+siempre mejor.
+
+Además, Q4a y Q4b no son consultas equivalentes: %ez devolvió
+18902 filas y Gonz% devolvió 2056. La comparación muestra el coste
+observado de ambos planes, no una prueba de la misma consulta
+ejecutada con y sin índice.
 
 ### Partes G y H — Coste de escritura y mantenimiento
 
@@ -307,6 +382,60 @@ y UX_CLI_EMAIL utiliza correos de texto. El tamaño y el orden de las
 claves influyen en su estructura y ocupación.
 
 El reto terminó con código de salida 0.
+
+### Parte D — ¿Haría cubriente el índice de Q9?
+
+No añadiría columnas a IX_PED_FECHA para esta consulta: recuperar
+los 20 pedidos más recientes ya cuesta solo 5 lecturas lógicas,
+mientras que PEDIDO ocupa 41,6 MB y cubrir todas sus columnas
+exigiría mantener un índice más ancho.
+
+El plan fue COUNT STOPKEY > VIEW > TABLE ACCESS BY INDEX ROWID
+PEDIDO > INDEX FULL SCAN DESCENDING IX_PED_FECHA.
+La prueba devolvió 20 filas, sin lecturas físicas, y terminó con código 0.
+
+Esta decisión se basa en el bajo coste medido; no he creado ni medido
+un índice cubriente alternativo para Q9.
+
+### Parte E — Curva del punto de equilibrio
+
+![Curva del punto de equilibrio](lab5/evidencia/config/04-curva-equilibrio.png)
+
+El índice con CF malo supera el coste del recorrido completo entre
+el 0,5 % y el 1 %; el de CF bueno, entre el 50 % y el 100 %.
+El optimizador cambia antes, entre el 0,1 % y el 0,2 %, porque estima
+costes y no compara únicamente las lecturas lógicas medidas.
+Los intervalos reflejan los puntos probados, no cruces exactos.
+
+### Parte F — Sargabilidad: resultados medidos
+
+| Prueba | Lecturas iniciales | Lecturas finales |
+|---|---:|---:|
+| Q1: función sobre EMAIL → función sobre el dato recibido | 1486 | 4 |
+| Q2: aritmética sobre FECHA_PEDIDO → columna despejada | 5285 | 323 |
+| Q3: código postal numérico → literal de texto | 5232 | 106 |
+| Q5: OR sin índice en teléfono → ambas ramas indexadas | 1486 | 6 |
+| Q5: alternativa UNION con ambas ramas indexadas | 1486 | 6 |
+| Q11: EXTRACT → rango de fechas | 5232 | 5232 |
+
+En Q3, el plan de la consulta original mostró
+TO_NUMBER("CODIGO_POSTAL") = 30001: la conversión se aplicaba a la
+columna. La comparación con un literal de texto permitió utilizar
+el índice temporal IX_PED_CP.
+
+Q4a (%ez) y Q4b (Gonz%) no son reescrituras equivalentes:
+buscan conjuntos distintos. Q4b permitió un rango por índice,
+pero acumuló 2024 lecturas, frente a las 1523 del recorrido de Q4a.
+
+En Q5, tanto la solución OR con ambas ramas indexadas como UNION
+necesitaron 6 lecturas. No atribuyo la mejora de UNION únicamente
+a la reescritura: en esa prueba ya existía el índice de teléfono.
+
+Q11 mantuvo TABLE ACCESS FULL y 5232 lecturas en ambas versiones.
+Una condición sargable permite considerar el índice, pero no obliga
+a elegirlo cuando se solicita una parte grande de la tabla.
+
+La ejecución terminó con código 0 y dejó los 7 índices originales.
 
 ## 3. Simulacro de examen S1–S26
 
