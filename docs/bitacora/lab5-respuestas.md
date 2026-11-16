@@ -226,9 +226,57 @@ ejecutada con y sin índice.
 
 ### Partes G y H — Coste de escritura y mantenimiento
 
-#### 10. Con tu evidencia 06: bloques modificados por INSERT con 4, 9 y 5 índices. ¿Qué índices de la propuesta del compañero rechazaste y con qué dato?
+### 10. Con tu evidencia 06: bloques modificados por INSERT con 4, 9 y 5 índices. ¿Qué índices de la propuesta del compañero rechazaste y con qué dato?
 
-Pendiente.
+Se midieron 2000 operaciones de una fila por prueba, deshechas con
+ROLLBACK. Los resultados por fila fueron:
+
+| Escenario | Índices en PEDIDO | INSERT | UPDATE estado | UPDATE importe | DELETE |
+|---|---:|---:|---:|---:|---:|
+| Heredado | 4 | 10,2 | 2,0 | 6,0 | 10,1 |
+| Propuesta del compañero | 9 | 20,4 | 6,0 | 6,0 | 20,1 |
+| Diseño V005 | 5 | 12,2 | 8,1 | 6,0 | 10,1 |
+
+Las cifras representan cambios de bloque por fila, no bloques distintos
+ni escrituras físicas a disco.
+
+El INSERT concuerda aproximadamente con la regla
+2 cambios de bloque de tabla y undo + 2 por cada índice mantenido.
+Con 4 índices se midieron 10,2; con 9, 20,4; con 5, 12,2.
+La propuesta duplicó el coste del INSERT y elevó el redo de
+1325 a 2678 bytes por fila. V005 quedó en 1685 bytes por fila.
+
+De los cinco índices propuestos:
+
+- IX_PED_CANAL se rechazó: no se utilizó en la carga observada y tiene
+  solo 3 claves distintas. El promedio de filas por valor es 33,333 %.
+- IX_PED_FEC_CLI se rechazó: no se utilizó en la carga observada.
+  Las consultas por fecha ya usaron IX_PED_FECHA; añadir ID_CLIENTE
+  como segunda columna no aportó una mejora demostrada en esta carga.
+- IX_PED_ESTADO no se conservó como índice completo. Sí fue utilizado
+  por Q12: devolvió 20000 pendientes con 147 lecturas, por lo que no
+  puede calificarse de inútil. Se sustituyó por el diseño parcial
+  IX_PED_PENDIENTES sobre FECHA_PENDIENTE, destinado a las filas en P.
+- IX_PED_CLI_FEC sí demostró utilidad: Q7 obtuvo 4 filas con 7 lecturas.
+  V005 lo sustituyó por IX_PED_CLI_FEC_CUB para cubrir la consulta
+  incluyendo sus columnas de salida.
+- IX_PED_CP se conservó: Q3 devolvió 102 filas con 106 lecturas.
+  Sus 11000 claves distintas dan aproximadamente un 0,009 % de
+  filas por valor medio.
+
+Además, se retiraron dos índices heredados:
+
+- IX_PED_CLIENTE: era prefijo izquierdo del compuesto. V005 creó antes
+  IX_PED_CLI_FEC_CUB, que empieza por ID_CLIENTE, manteniendo ese
+  acceso para la clave ajena.
+- IX_PED_IMPORTE: no tuvo uso en la carga observada. Se hizo INVISIBLE
+  y Q2 mantuvo el mismo plan con IX_PED_FECHA y 335 lecturas.
+
+La decisión no se basó solo en el número de claves distintas:
+también se comprobaron uso real, coste de escritura, redundancia
+y posibilidad de retirada reversible. La ventana de observación
+del laboratorio es corta; en producción habría que incluir los
+procesos periódicos antes de concluir que un índice no se necesita.
 
 #### 11. Distingue, con tus gráficos de la Parte H, un índice con divisiones 50/50, uno con divisiones 90/10 y uno con patrón cola.
 
@@ -314,7 +362,6 @@ por sí solo no identifica la causa concreta de cada bloque.
 
 Evidencia: evidencia/script/<nombre-del-log-01-bfr-pedido>
 
-### Partes C a P
 
 ### Parte C — Interpretación de los gráficos iniciales
 
@@ -436,6 +483,70 @@ Una condición sargable permite considerar el índice, pero no obliga
 a elegirlo cuando se solicita una parte grande de la tabla.
 
 La ejecución terminó con código 0 y dejó los 7 índices originales.
+
+### Parte G — Protocolo de diseño y coste de escritura
+
+Evidencia:
+`evidencia/script/20261116T121534Z_06-indices.script.log`.
+
+Se completaron los escenarios heredado, propuesta del compañero
+y V005. La ejecución terminó con código 0.
+
+#### Protocolo aplicado
+
+1. Necesidad: la carga Q2, Q3, Q7, Q8, Q9 y Q12 utilizó
+   IX_PED_FECHA, IX_PED_CP, IX_PED_CLI_FEC e IX_PED_ESTADO.
+   No utilizó IX_PED_CANAL, IX_PED_CLIENTE, IX_PED_FEC_CLI
+   ni IX_PED_IMPORTE durante la observación.
+2. Viabilidad: el porcentaje medio por clave sirve como primera
+   aproximación, pero no sustituye a la distribución real ni a las
+   medidas. ESTADO tiene cuatro valores, pero P representa el 2 %,
+   no el 25 % medio. Q12 utilizó su índice con 147 lecturas.
+3. Escritura: los INSERT pasaron de 10,2 a 20,4 cambios de bloque
+   por fila con la propuesta. V005 limitó el coste a 12,2.
+4. Redundancia: IX_PED_CLIENTE era prefijo de IX_PED_CLI_FEC;
+   IX_PED_FECHA era prefijo de IX_PED_FEC_CLI. Se eligió qué conservar
+   según la carga, no borrando automáticamente el índice más corto.
+5. Ciclo de vida: IX_PED_IMPORTE quedó INVISIBLE y VALID antes de
+   retirarlo. Q2 siguió realizando 335 lecturas con IX_PED_FECHA.
+
+#### Costes aceptados con V005
+
+UPDATE estado pasó de 2 a 8,1 cambios de bloque por fila:
+además de la tabla y su undo, cambia la entrada del índice cubriente
+que contiene ESTADO y desaparece la entrada del índice parcial
+cuando el pedido pasa de P a E.
+
+UPDATE importe mantuvo aproximadamente 6 cambios de bloque por fila.
+Antes se mantenía IX_PED_IMPORTE; con V005 se mantiene
+IX_PED_CLI_FEC_CUB, que también contiene IMPORTE.
+El redo no fue idéntico: pasó de 754 a 812 bytes por fila.
+
+DELETE mantuvo 10,1 cambios de bloque por fila pese a haber
+5 índices: las filas antiguas borradas en esta prueba no estaban
+en P y no tenían entrada en IX_PED_PENDIENTES.
+
+#### Diseño final
+
+PEDIDO quedó con:
+- PK_PEDIDO.
+- IX_PED_FECHA.
+- IX_PED_CLI_FEC_CUB.
+- IX_PED_PENDIENTES.
+- IX_PED_CP.
+
+CLIENTE quedó con:
+- PK_CLIENTE.
+- UX_CLI_EMAIL.
+- IX_CLI_PAIS_CIUDAD.
+- UX_CLI_DNI.
+
+Los 9 índices finales aparecen VISIBLE.
+
+La salida de esta parte demuestra la aplicación de V005 y su coste
+DML. No contiene una nueva medición de todas las consultas de lectura
+tras V005, por lo que no atribuyo a este registro cifras de lectura
+del diseño final que no se hayan medido aquí.
 
 ## 3. Simulacro de examen S1–S26
 
