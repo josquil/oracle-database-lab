@@ -735,6 +735,49 @@ checkpoints ni que la recuperación tarde cero segundos.
 
 La ejecución terminó con código 0.
 
+### Parte J — Contenido y multiplexación de los control files
+
+#### J.1. Estado inicial y contenido
+
+La consulta a V$CONTROLFILE mostró dos copias iniciales:
+
+- /opt/oracle/oradata/FREE/control01.ctl
+- /opt/oracle/oradata/FREE/control02.ctl
+
+Ambas tenían bloques de 16384 bytes y FILE_SIZE_BLKS = 1146.
+La columna STATUS aparecía vacía, sin indicar INVALID.
+
+V$CONTROLFILE_RECORD_SECTION mostró, entre otras, las secciones
+DATAFILE, TABLESPACE, FILENAME, LOG HISTORY y ARCHIVED LOG.
+En esta ejecución aparecieron 22 registros usados en DATAFILE,
+20 en TABLESPACE y 15 tanto en LOG HISTORY como en ARCHIVED LOG.
+
+Estos recuentos describen registros de las secciones internas:
+no deben interpretarse automáticamente como un inventario de
+archivos actuales ni como un diagnóstico del modo ARCHIVELOG.
+
+CONTROL_FILE_RECORD_KEEP_TIME estaba configurado en 7 días.
+Este parámetro se refiere a la conservación mínima de registros
+reutilizables antes de su reutilización, no a una política de
+retención de los archivos físicos de backup o de redo archivado.
+
+Se generó la copia lógica:
+`/opt/oracle/oradata/FREE/controlfile_lab5.trc`.
+
+La traza contiene un script CREATE CONTROLFILE; no es una copia
+binaria del control file ni una copia de los datos de la base.
+Permanece dentro del volumen y no se incorpora a Git.
+
+#### J.2. Tercera copia
+
+El script realizó esta secuencia:
+
+1. Amplió CONTROL_FILES en el SPFILE para incluir control03.ctl.
+2. Ejecutó SHUTDOWN IMMEDIATE.
+3. Copió un control file sano con la base parada, conservando permisos.
+4. Arrancó la instancia y comprobó las tres
+
+
 ## 3. Simulacro de examen S1–S26
 
 Para cada pregunta: letra o letras elegidas, una frase de justificación
