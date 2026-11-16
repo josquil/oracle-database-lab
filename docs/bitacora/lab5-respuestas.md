@@ -278,13 +278,87 @@ y posibilidad de retirada reversible. La ventana de observación
 del laboratorio es corta; en producción habría que incluir los
 procesos periódicos antes de concluir que un índice no se necesita.
 
-#### 11. Distingue, con tus gráficos de la Parte H, un índice con divisiones 50/50, uno con divisiones 90/10 y uno con patrón cola.
+### 11. Distingue, con tus gráficos de la Parte H, un índice con divisiones 50/50, uno con divisiones 90/10 y uno con patrón cola.
 
-Pendiente.
+Las pruebas insertaron 200000 filas en cada tabla.
 
-#### 12. ¿Qué remedio elegirías para el patrón cola en producción, en horario de servicio, y por qué?
+| Índice | Divisiones totales | Divisiones 90/10 | Hojas | Ocupación viva |
+|---|---:|---:|---:|---:|
+| IX_AZAR | 595 | 0 | 596 | 75,4 % |
+| IX_CRECIENTE | 398 | 398 | 399 | 99,9 % |
+| IX_INVERTIDA (REVERSE) | 511 | 0 | 512 | 77,9 % |
 
-Pendiente.
+En IX_AZAR, las claves llegan a diferentes zonas del árbol.
+Cuando se llena una hoja intermedia, se divide repartiendo sus
+entradas aproximadamente por la mitad. Después las hojas se vuelven
+a llenar. El histograma muestra ocupaciones variadas, entre el 40 %
+y el 99 %, sin hojas vacías. El 75,4 % de ocupación no demuestra
+por sí solo una degradación que requiera mantenimiento.
+
+En IX_CRECIENTE, las claves nuevas llegan al extremo derecho.
+Las 398 divisiones fueron 90/10: se deja llena la hoja anterior
+y se continúa en una nueva. El mapa aparece lleno de izquierda
+a derecha y la ocupación viva media es del 99,9 %.
+
+IX_INVERTIDA reparte las claves secuenciales al invertir sus bytes.
+No registró divisiones 90/10 y tuvo una ocupación del 77,9 %.
+El coste se observó en la consulta por rango: el índice normal
+permitió INDEX RANGE SCAN con 4 lecturas, mientras que con REVERSE
+se eligió TABLE ACCESS FULL y se realizaron 878 lecturas.
+
+El patrón cola se distingue por su asimetría, no solo por una
+ocupación media baja. En IX_COLA, el mapa tenía la izquierda vacía
+y la derecha llena: se insertan claves crecientes y se borran
+las más antiguas.
+
+Tras 200000 altas, 150000 bajas y otras 50000 altas quedaron
+100000 mensajes vivos, con identificadores entre 150001 y 250000.
+El índice tenía 425 hojas, 224 sin entradas vivas, 70497 entradas
+borradas aún contabilizadas y una ocupación viva del 47,1 %.
+
+Obtener el primer mensaje requirió 226 lecturas, frente a las 2
+del índice sano: había que atravesar hojas sin entradas vivas
+antes de encontrar el mensaje más antiguo.
+
+
+### 12. ¿Qué remedio elegirías para el patrón cola en producción, en horario de servicio, y por qué?
+
+Elegiría primero COALESCE para resolver el síntoma medido:
+fusiona bloques del índice cuando es posible y libera bloques
+para su reutilización dentro del propio segmento.
+
+| Estado | Hojas | Entradas borradas | MB del segmento | Lecturas del siguiente mensaje |
+|---|---:|---:|---:|---:|
+| Cola degradada | 425 | 70497 | 4,00 | 226 |
+| Tras COALESCE | 201 | 0 | 4,00 | 2 |
+| Tras SHRINK SPACE | 201 | 0 | 1,69 | 2 |
+| Tras REBUILD ONLINE | 223 | 0 | 2,00 | 2 |
+
+COALESCE resolvió el problema de lectura y mantuvo el segmento
+en 4 MB: recuperó espacio reutilizable dentro del índice, pero
+no lo devolvió al tablespace.
+
+Si además fuera necesario devolver espacio al tablespace,
+consideraría SHRINK SPACE, comprobando sus requisitos y el
+impacto operativo. En esta ejecución, después de COALESCE,
+redujo el segmento de 4 a 1,69 MB y mantuvo las 2 lecturas.
+
+No elegiría REBUILD ONLINE solo para este síntoma: después de
+las operaciones anteriores no mejoró las lecturas, que siguieron
+en 2, y dejó un segmento de 2 MB con 223 hojas.
+
+Las operaciones se probaron consecutivamente sobre el mismo
+índice; no son tres ensayos independientes partiendo de la misma
+cola degradada. Por tanto, la tabla demuestra la evolución
+observada, no una comparación aislada del coste de cada remedio.
+
+En producción, una operación en línea no debe interpretarse como
+ausencia absoluta de bloqueos, esperas o consumo de recursos.
+Se debe comprobar su comportamiento bajo la carga real.
+
+Si el patrón reaparece de forma continua, revisaría el diseño:
+por ejemplo, particionar por fecha y retirar particiones completas
+cuando la política de retención y los accesos lo permitan.
 
 ### Partes I a L — SCN, control files, redo y FRA
 
@@ -547,6 +621,33 @@ La salida de esta parte demuestra la aplicación de V005 y su coste
 DML. No contiene una nueva medición de todas las consultas de lectura
 tras V005, por lo que no atribuyo a este registro cifras de lectura
 del diseño final que no se hayan medido aquí.
+
+### Parte H — Divisiones, patrón cola y remedios
+
+- IX_AZAR: 595 divisiones, ninguna 90/10, 596 hojas y 75,4 %
+  de ocupación viva.
+- IX_CRECIENTE: 398 divisiones, todas 90/10, 399 hojas y 99,9 %
+  de ocupación viva.
+- IX_INVERTIDA: 511 divisiones, ninguna 90/10, 512 hojas y 77,9 %
+  de ocupación viva.
+- Consulta por rango: 4 lecturas con el índice normal y 878 con
+  recorrido completo en la tabla con índice REVERSE.
+- Patrón cola: 425 hojas, 224 sin entradas vivas y 226 lecturas
+  para recuperar un único mensaje.
+- COALESCE: 201 hojas y 2 lecturas; el segmento permaneció en 4 MB.
+- SHRINK SPACE posterior: 1,69 MB y 2 lecturas.
+- REBUILD ONLINE posterior: 223 hojas, 2 MB y 2 lecturas.
+
+El 80 % de espacio usado de IX_COLA no equivalía a un 80 % de
+ocupación útil: descontando las entradas borradas, la ocupación
+viva era del 47,1 %. El mapa permitió localizar el problema
+en el extremo izquierdo.
+
+El gráfico final corresponde al estado posterior a REBUILD ONLINE:
+89,7 % de ocupación viva, sin hojas vacías y sin entradas borradas.
+
+La ejecución terminó con código 0 y confirmó la eliminación
+del esquema de pruebas LAB5_PRUEBAS.
 
 ## 3. Simulacro de examen S1–S26
 
