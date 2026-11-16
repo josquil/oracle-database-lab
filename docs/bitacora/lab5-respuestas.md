@@ -777,6 +777,50 @@ El script realizó esta secuencia:
 3. Copió un control file sano con la base parada, conservando permisos.
 4. Arrancó la instancia y comprobó las tres
 
+### Parte K — Grupos, miembros y cambios de redo
+
+#### Estado inicial y multiplexación
+
+La instancia tenía tres grupos de redo de 200 MB, cada uno con
+un único miembro:
+
+- Grupo 1: redo01.log.
+- Grupo 2: redo02.log.
+- Grupo 3: redo03.log.
+
+Se añadió un segundo miembro a cada grupo:
+redo01b.log, redo02b.log y redo03b.log.
+
+Los nuevos miembros aparecieron inicialmente como INVALID.
+Después de los dos cambios de log del script, los miembros
+nuevos de los grupos 2 y 3 dejaron de mostrar ese estado,
+pero redo01b.log todavía aparecía como INVALID.
+
+El mensaje del script «ninguno queda INVALID» no coincidía
+con la tabla real. Con tres grupos, los dos cambios realizados
+no habían completado la vuelta al grupo 1.
+
+Se realizó un cambio adicional y se comprobó el resultado:
+
+| Grupo | Secuencia | Miembros | Archivado | Estado |
+|---|---:|---:|---|---|
+| 1 | 19 | 2 | NO | CURRENT |
+| 2 | 17 | 2 | YES | INACTIVE |
+| 3 | 18 | 2 | NO | ACTIVE |
+
+La consulta final a V$LOGFILE mostró los seis miembros sin
+INVALID ni STALE. Tanto la ejecución principal como la
+verificación adicional terminaron con código 0.
+
+#### Grupos frente a miembros
+
+Los grupos se utilizan sucesivamente: LGWR escribe en el grupo
+CURRENT y pasa a otro al producirse un log switch.
+
+Los miembros de un mismo grupo son copias del mismo redo.
+Añadir miembros mejora la redundancia, pero no aumenta la
+capacidad lógica del grupo: cada grupo sigue siendo de 200
+
 
 ## 3. Simulacro de examen S1–S26
 
