@@ -361,10 +361,39 @@ por ejemplo, particionar por fecha y retirar particiones completas
 cuando la política de retención y los accesos lo permitan.
 
 ### Partes I a L — SCN, control files, redo y FRA
+### 13. Con tu evidencia 08: ¿qué valores compara Oracle al abrir para decidir si hace falta recuperación?
 
-#### 13. Con tu evidencia 08: ¿qué valores compara Oracle al abrir para decidir si hace falta recuperación?
+Oracle compara la información de checkpoint registrada en el
+control file para cada datafile con la de la cabecera del propio
+archivo. En la evidencia se consultan mediante:
 
-Pendiente.
+- V$DATAFILE.CHECKPOINT_CHANGE#: checkpoint registrado en el control file.
+- V$DATAFILE_HEADER.CHECKPOINT_CHANGE#: checkpoint de la cabecera.
+
+Antes del checkpoint, los archivos mostrados de CDB$ROOT y
+academia01.dbf tenían el valor 6423505 en ambos sitios.
+
+Después de modificar datos, confirmar y ejecutar
+ALTER SYSTEM CHECKPOINT, esos archivos mostraron 6428985
+tanto en el control file como en sus cabeceras.
+
+Los archivos de PDB$SEED (CON_ID = 2) mantuvieron 2098101
+en ambos sitios. Su checkpoint no avanzó porque la PDB está
+en solo lectura; ese valor antiguo no indica por sí solo un fallo.
+
+La comparación se hace entre la información de cada archivo:
+no se exige que PDB$SEED tenga el mismo checkpoint que los
+archivos abiertos en lectura y escritura.
+
+DBWn escribe los bloques de datos y CKPT registra la información
+del checkpoint en el control file y en las cabeceras.
+Si un archivo está atrasado respecto al estado requerido,
+Oracle necesita aplicar redo para recuperarlo.
+
+La igualdad observada demuestra la sincronización de los
+checkpoints consultados, pero no basta por sí sola para afirmar
+que nunca habrá recuperación: también importa si el cierre
+anterior fue limpio o hubo una caída de instancia.
 
 #### 14. ¿Qué protege la multiplexación del control file en el mismo volumen y qué no? ¿Cómo se haría en producción?
 
@@ -648,6 +677,63 @@ El gráfico final corresponde al estado posterior a REBUILD ONLINE:
 
 La ejecución terminó con código 0 y confirmó la eliminación
 del esquema de pruebas LAB5_PRUEBAS.
+
+### Parte I — SCN y checkpoints
+
+#### Avance del SCN
+
+CURRENT_SCN pasó de 6428975 a 6428977 entre las dos consultas.
+El SCN puede avanzar aunque no ejecute operaciones manuales,
+porque la base mantiene actividad interna.
+
+Después del checkpoint, el checkpoint de la base era 6428985
+y CURRENT_SCN era 6429005. No representan lo mismo:
+el primero identifica el checkpoint registrado y el segundo
+el SCN actual cuando se realizó la consulta.
+
+#### PDB$SEED
+
+Los archivos mostrados con CON_ID = 2 mantuvieron el checkpoint
+2098101, coincidente entre control file y cabecera.
+PDB$SEED está en solo lectura y no tiene que avanzar al mismo
+checkpoint que los archivos de lectura y escritura.
+
+#### Estimación de recuperación
+
+La consulta a V$INSTANCE_RECOVERY devolvió:
+
+| Magnitud | Valor |
+|---|---:|
+| TARGET_MTTR | 0 |
+| ESTIMATED_MTTR | 13 segundos |
+| RECOVERY_ESTIMATED_IOS | 4 |
+| ACTUAL_REDO_BLKS | 338 |
+| FAST_START_MTTR_TARGET | 0 |
+| LOG_CHECKPOINT_INTERVAL | 0 |
+| LOG_CHECKPOINT_TIMEOUT | 1800 segundos |
+
+ESTIMATED_MTTR = 13 es una estimación de recuperación de instancia,
+no un tiempo medido mediante una caída ni el RTO completo del servicio.
+
+ACTUAL_REDO_BLKS = 338 representa los bloques de redo que Oracle
+estima que se requieren para la recuperación en ese momento.
+No es el total de redo generado por las Partes B a H ni un recuento
+de bloques de datos sucios.
+
+La consulta se hizo después del checkpoint, pero la actividad
+de la instancia continúa. No atribuyo esos 338 bloques a una
+operación concreta sin una medición adicional.
+
+Una carga mayor puede aumentar el trabajo pendiente de recuperación,
+pero no permite afirmar que diez veces más carga implique
+exactamente diez veces más tiempo.
+
+FAST_START_MTTR_TARGET permite expresar un objetivo de recuperación
+en segundos. En esta ejecución vale 0: no se ha fijado un objetivo
+positivo mediante ese parámetro. Esto no significa que no existan
+checkpoints ni que la recuperación tarde cero segundos.
+
+La ejecución terminó con código 0.
 
 ## 3. Simulacro de examen S1–S26
 
