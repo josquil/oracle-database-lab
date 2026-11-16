@@ -885,6 +885,75 @@ a elegirlo cuando se solicita una parte grande de la tabla.
 
 La ejecución terminó con código 0 y dejó los 7 índices originales.
 
+### Reto F — Revisión de código con medidas
+
+Consulta revisada:
+
+SELECT *
+FROM tiendasur.cliente
+WHERE SUBSTR(telefono, 1, 3) = '600'
+   OR UPPER(apellidos) = 'GIL';
+
+#### Comentario de revisión del Pull Request
+
+La consulta aplica funciones a TELEFONO y APELLIDOS, por lo que
+un índice normal sobre esas columnas no proporciona directamente
+una búsqueda por las expresiones utilizadas.
+
+Propongo reescribir el teléfono como:
+
+WHERE telefono LIKE '600%'
+   OR UPPER(apellidos) = 'GIL'
+
+No sustituyo UPPER(apellidos) = 'GIL' por apellidos = 'Gil':
+sin una regla de normalización que lo justifique, cambiaría
+la búsqueda para otras combinaciones de mayúsculas y minúsculas.
+
+Para conservar la semántica se probó temporalmente un índice
+sobre TELEFONO y otro funcional sobre UPPER(APELLIDOS).
+No se modificó V005.
+
+| Escenario | Filas | Lecturas lógicas | Lecturas físicas | Tiempo ms |
+|---|---:|---:|---:|---:|
+| Original sin índices del reto | 981 | 1487 | 0 | 62,0 |
+| Reescrita sin índices del reto | 981 | 1487 | 0 | 44,6 |
+| Reescrita con ambas ramas indexadas | 981 | 1568 | 1 | 72,0 |
+
+Las dos primeras versiones hicieron TABLE ACCESS FULL.
+La tercera utilizó una expansión del OR con UNION-ALL y
+accesos INDEX RANGE SCAN a IX_RF_TELEFONO e IX_RF_APE_UPPER,
+seguidos de accesos a CLIENTE por ROWID.
+
+La verificación mediante MINUS en ambos sentidos devolvió
+cero diferencias entre los conjuntos de ID_CLIENTE.
+
+La reescritura del teléfono no redujo las lecturas sin índices.
+Con ambas ramas indexadas, se realizaron 81 lecturas lógicas más
+que con el recorrido completo: 1568 frente a 1487.
+
+Por tanto, no aprobaría estos dos índices para esta consulta
+basándome en esta prueba: no demostraron ahorro de lecturas
+y añadirían mantenimiento a las escrituras.
+
+El tiempo aislado tampoco prueba una mejora estable.
+Se conservan las medidas observadas, incluida una lectura física
+en el escenario indexado, sin atribuirle una causa no comprobada.
+
+Aprobaría la reescritura del prefijo por claridad y por permitir
+considerar un acceso por rango si la carga futura lo justifica,
+sin prometer una mejora inmediata.
+
+#### Limpieza y evidencia
+
+Se eliminaron únicamente IX_RF_TELEFONO e IX_RF_APE_UPPER.
+La comprobación final mostró:
+- Índices temporales restantes: 0.
+- Índices de TiendaSur: 9.
+- Código de salida: 0.
+
+Script: scripts/lab5/05-reto-revision.sql.
+La evidencia se conserva en el registro *_05-reto-revision.script.log.
+
 ### Parte G — Protocolo de diseño y coste de escritura
 
 Evidencia:
