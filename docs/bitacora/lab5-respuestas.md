@@ -908,6 +908,88 @@ y se gestionarían los archivos con RMAN, sin borrarlos directamente
 con rm.
 
 La configuración final quedó en ARCHIVELOG, con FRA de 4 GB.
+### Parte M — Undo, lectura consistente y coste de redo
+
+#### M.1. Dos sesiones sobre la misma fila
+
+La sesión A (SID 52) modificó la fila 101 de ACTIVO a EGRESADO
+y mantuvo abierta la transacción antes de confirmar.
+
+Mientras A no había confirmado, una consulta normal de B devolvió
+ACTIVO. B no leyó el cambio sin confirmar: obtuvo la versión
+consistente anterior mediante el undo.
+
+La transacción de A consumía 1 bloque y 1 registro de undo.
+Se observaron un bloqueo TM en modo 3 sobre ACA_ESTUDIANTES
+y un bloqueo TX en modo 6.
+
+Al solicitar la misma fila con SELECT ... FOR UPDATE WAIT 3,
+B no pudo adquirir el bloqueo y recibió ORA-00054 y ORA-40097.
+Era el resultado esperado: consultar una versión consistente
+no equivale a poder bloquear la fila modificada por otra transacción.
+
+Después del COMMIT de A, una nueva consulta de B devolvió EGRESADO.
+La consulta AS OF TIMESTAMP de hace 40 segundos devolvió ACTIVO.
+Finalmente, la reparación lógica dejó la fila 101 en ACTIVO.
+
+La gestión de undo era AUTO, con UNDO_TABLESPACE = UNDOTBS1
+y UNDO_RETENTION = 900 segundos. Los intervalos mostrados de
+V$UNDOSTAT tenían retención ajustada de 900 segundos y ningún
+ORA-01555 registrado.
+
+UNDO_RETENTION no demuestra por sí solo una garantía absoluta:
+si no está activada RETENTION GUARANTEE y falta espacio,
+Oracle puede reutilizar undo no expirado. Esta prueba no consultó
+la propiedad de garantía del tablespace.
+
+La ejecución de M.1 terminó con código 0.
+
+#### M.2. Coste de 10000 operaciones
+
+| Operación | Bloques de undo | KB en bloques de undo | Redo total KB | Redo que describe undo KB | Redo del ROLLBACK KB |
+|---|---:|---:|---:|---:|---:|
+| INSERT | 142 | 1136 | 4795 | 2012 | 355 |
+| UPDATE | 71 | 568 | 1258 | 540 | 751 |
+| DELETE | 427 | 3416 | 6627 | 3262 | 4701 |
+
+Los KB de undo se obtienen multiplicando los bloques usados
+por su tamaño de 8 KB. No equivalen necesariamente a bytes
+de contenido útil de registros de undo.
+
+El INSERT necesita información para eliminar las filas y entradas
+de índice recién insertadas, sin conservar una imagen anterior
+de una fila que no existía.
+
+El UPDATE de esta prueba modifica CANAL, columna no indexada:
+se conserva la información anterior necesaria para deshacer
+ese cambio. Fue la operación con menos undo y redo de las tres.
+
+El DELETE necesita información para reconstruir las filas
+eliminadas y sus entradas de índice. En esta prueba tuvo
+el mayor consumo de undo y la mayor generación de redo.
+
+Estas diferencias dependen de las operaciones y los índices
+concretos del banco: no significan que todo UPDATE sea siempre
+más barato que cualquier INSERT o DELETE.
+
+#### El undo también necesita protección
+
+La columna «redo que describe el undo» forma parte del redo total;
+no se suma otra vez. Los cambios en bloques de undo también
+se describen en el redo.
+
+El ROLLBACK genera redo adicional porque deshacer modifica bloques.
+Se midieron 355 KB al deshacer el INSERT, 751 KB al deshacer
+el UPDATE y 4701 KB al deshacer el DELETE.
+
+Por tanto, deshacer las operaciones no elimina el redo que ya
+generaron ni convierte el experimento en una operación sin coste.
+
+En recuperación de instancia, el redo permite reconstruir los
+cambios necesarios, incluidos los de undo; después, el undo
+permite deshacer las transacciones no confirmadas.
+
+La ejecución de M.2 terminó con código 0.
 
 ## 3. Simulacro de examen S1–S26
 
