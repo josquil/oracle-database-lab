@@ -1250,6 +1250,69 @@ Los cuatro scripts terminaron con código 0.
 La copia completa del simulacro C y la recuperación RMAN de D
 demostraron restauraciones reales, no solo creación de backups.
 
+### Parte P — Comprobación de salud y verificación final
+
+P.1 se ejecutó con la cuenta de solo lectura C##OPS_RO y terminó
+con código 0.
+
+La instancia estaba OPEN y la base y FREEPDB1 en READ WRITE,
+con ARCHIVELOG. Ningún tablespace apareció por encima del 80 %.
+La FRA tenía 103 MB usados de 4096 MB, aproximadamente el 2,5 %.
+
+Se comprobaron tres control files y ningún grupo de redo con
+un solo miembro. Había un backup RMAN DATAFILE FULL completado,
+de 38 MB y 4 segundos; ese registro no equivale a un backup
+completo de toda la base.
+
+El uso observado fue de 95 procesos sobre un límite de 200
+y 123 sesiones sobre 322. No se registraron errores de
+snapshot too old ni de falta de espacio de undo.
+La consulta más larga registrada fue de 1539 segundos.
+
+#### Clasificación del alert log
+
+- ORA-00202 y ORA-205 de las 20:22: huella del control file
+  eliminado deliberadamente en el simulacro B.
+- ORA-01110 sobre el archivo 16 y ORA-63999 de las 20:57:
+  huella del fallo de medios provocado en D.
+- ORA-01113 sobre el archivo 22 durante la reapertura:
+  mensaje histórico en el contexto del simulacro D.
+  La PDB terminó READ WRITE y la verificación funcional posterior
+  fue correcta; no se deduce un incidente nuevo solo de ese registro.
+- ORA-00800 [Set Priority Failed] para LGWR y VKTM:
+  aviso de configuración del entorno que requiere revisar las
+  trazas para precisar su causa. No se confunde con los fallos
+  deliberados ni se considera resuelto por obtener código 0.
+
+Los índices señalados en los otros esquemas aparecieron
+«sin estadísticas». No se mostraron índices inválidos o invisibles
+en ese bloque. La ausencia de estadísticas solo debe considerarse
+esperada si se confirma que los objetos correspondientes están vacíos.
+
+#### Verificación automática P.2
+
+16-verificacion-final.sh terminó con:
+RESULTADO: TODO OK.
+Código de salida: 0.
+
+Se verificaron:
+- Backup del Lab 4 íntegro.
+- 100000 clientes y 1000000 de pedidos en TiendaSur.
+- LAB_TOOLS.MEDIR válido y los cinco índices esperados en PEDIDO.
+- DNI único, sin índices invisibles ni esquema LAB5_PRUEBAS.
+- Tres control files, redo multiplexado y ARCHIVELOG.
+- FRA configurada con 4294967296 bytes en el SPFILE.
+- Filas 101, 102 y 104 devueltas a ACTIVO.
+- 60000 matrículas restauradas.
+- Existencia de backups RMAN completados.
+- Una única PDB de usuario y CDB abierta.
+- Acceso de C##OPS_RO al alert log.
+- Evidencias 00 a 15 presentes.
+- config/.env y backups/ fuera de Git.
+
+El resultado valida las comprobaciones del script, no sustituye
+la revisión de las respuestas, los retos y la seguridad del historial.
+
 ## 3. Simulacro de examen S1–S26
 
 Para cada pregunta: letra o letras elegidas, una frase de justificación
