@@ -821,6 +821,93 @@ Los miembros de un mismo grupo son copias del mismo redo.
 Añadir miembros mejora la redundancia, pero no aumenta la
 capacidad lógica del grupo: cada grupo sigue siendo de 200
 
+### Parte L — ARCHIVELOG, FRA y fallo controlado de archivado
+
+#### L.1. Configuración y comprobación
+
+La base ya estaba en ARCHIVELOG antes de esta parte.
+
+El intento deliberado de configurar DB_RECOVERY_FILE_DEST antes
+de DB_RECOVERY_FILE_DEST_SIZE produjo ORA-02097 y ORA-19802.
+Ambos mensajes correspondían al mismo intento: faltaba definir
+el tamaño de la FRA antes de asignar su ruta.
+
+El script corrigió el orden y configuró:
+
+- DB_RECOVERY_FILE_DEST_SIZE: 4 GB.
+- DB_RECOVERY_FILE_DEST: /opt/oracle/oradata/fra.
+
+No hizo falta reiniciar porque la base ya estaba en ARCHIVELOG.
+
+La comprobación mostró Archive Mode, archivado automático Enabled
+y destino USE_DB_RECOVERY_FILE_DEST. Aparecieron los procesos
+ARC0, ARC1, ARC2 y ARC3.
+
+Los nuevos archivados de las secuencias 19 y 20 tenían nombres
+OMF o1_mf_... y ARC = YES. La FRA contenía 2 archivados y
+aproximadamente 9 MB usados de un límite de 4096 MB.
+
+La ejecución de L.1 terminó con código 0.
+
+#### L.2. FRA llena, provocada y resuelta
+
+Estado inicial: límite de 4096 MB y 9 MB usados.
+
+El script redujo temporalmente el límite a 2 MB. Después ejecutó
+un UPDATE de 20000 filas, aunque asignando el mismo valor,
+y solicitó el archivado del redo actual.
+
+La operación ALTER SYSTEM ARCHIVE LOG CURRENT produjo:
+
+- ORA-16038: no se pudo archivar el grupo 3, secuencia 21.
+- ORA-19809: se superó el límite del área de recuperación.
+- ORA-00312: identificación de los dos miembros del grupo afectado.
+
+Los mensajes ORA-00312 nombraban redo03.log y redo03b.log;
+no demostraban corrupción de esos archivos.
+
+El alert log confirmó ORA-19815: el límite temporal de
+2097152 bytes estaba al 100 %, sin espacio restante.
+También registró ORA-19809.
+
+Antes de resolverlo, la secuencia 21 aparecía ACTIVE y sin archivar,
+mientras la secuencia 22 era CURRENT.
+
+#### Resolución y verificación
+
+El script restableció el límite a 4096 MB. El archivado pudo continuar:
+
+- Secuencia 21: ARCHIVED = YES.
+- Secuencia 22: ARCHIVED = YES.
+- Secuencia 23: CURRENT, ARCHIVED = NO.
+
+Que la secuencia actual todavía no esté archivada no indica
+por sí solo un fallo.
+
+La FRA terminó con 10,9 MB usados y un límite de 4096 MB.
+La ejecución de L.2 terminó con código 0.
+
+El experimento demostró un límite lógico insuficiente de la FRA,
+no que el disco físico estuviera lleno. Los 4 GB configurados
+son un límite de uso, no una reserva física de espacio.
+
+#### Interpretación operativa
+
+Si el archivador no puede guardar un grupo pendiente, ese grupo
+no puede reutilizarse en ARCHIVELOG. Si la situación continúa
+hasta agotar los grupos reutilizables, la actividad que necesita
+generar redo puede quedar esperando.
+
+La salida muestra el fallo de archivado y su resolución.
+No muestra un ORA-00257 ni demuestra que todas las sesiones
+de aplicación llegaran a bloquearse.
+
+La solución aplicada fue ampliar el límite, disponiendo de espacio
+físico suficiente. En producción también se revisaría la retención
+y se gestionarían los archivos con RMAN, sin borrarlos directamente
+con rm.
+
+La configuración final quedó en ARCHIVELOG, con FRA de 4 GB.
 
 ## 3. Simulacro de examen S1–S26
 
