@@ -1,14 +1,8 @@
-Tabla	Filas	Bloques	Bytes medios por fila	BFR mostrado
-CLIENTE	100000	1517	102	66
-PEDIDO	1000000	5320	32	188
-
-
 # Lab 5 — Oracle DBA Workflow II
 
 
 ## 1. Preguntas de comprobación
 
-## Partes A y B — Punto de partida y banco de medida
 
 ### 1. Compara el paso 6 de tu copia lab4-final con el de la copia lab3-final. ¿Qué demuestra la diferencia?
 
@@ -83,8 +77,6 @@ sobre PEDIDO.
 Evidencia:
 - evidencia/script/20261116T093925Z_01-herramienta-medir.script.log
 
-### Partes C y D — Anatomía y tipos de índice
-
 ### 4. Con tu evidencia 02: altura, número de hojas y factor de ramificación real de IX_PED_CLIENTE. ¿Qué altura tendría con mil millones de filas?
 
 IX_PED_CLIENTE tiene altura 3, 2216 bloques de hoja y 6 bloques de rama,
@@ -127,10 +119,6 @@ La raíz de PK_CLIENTE tiene 186 entradas separadoras más el hijo
 izquierdo kdxbrlmc: en total, 187 hijos, correspondientes a sus
 187 hojas.
 
-#### 5. En el volcado de la hoja de PK_CLIENTE, localiza una entrada y descompón el ROWID que guarda en bloque y fila. ¿Por qué no aparece el número de archivo?
-
-Pendiente.
-
 #### 6. Elige tres pruebas de la Parte D y explica, con las lecturas lógicas medidas, por qué un tipo de índice gana al otro.
 
 He elegido tres comparaciones de mi evidencia 03:
@@ -158,8 +146,6 @@ que sea la mejor opción para una carga con escrituras concurrentes.
 
 El script terminó con código 0 y dejó 7 índices en TiendaSur
 después de eliminar los objetos experimentales.
-
-### Partes E y F — Agrupamiento, equilibrio y sargabilidad
 
 ### 7. ¿Por qué IX_PED_FECHA tiene un clustering factor cercano al número de bloques e IX_PED_CLIENTE cercano al de filas? ¿Lo arreglaría un REBUILD?
 
@@ -223,8 +209,6 @@ Además, Q4a y Q4b no son consultas equivalentes: %ez devolvió
 18902 filas y Gonz% devolvió 2056. La comparación muestra el coste
 observado de ambos planes, no una prueba de la misma consulta
 ejecutada con y sin índice.
-
-### Partes G y H — Coste de escritura y mantenimiento
 
 ### 10. Con tu evidencia 06: bloques modificados por INSERT con 4, 9 y 5 índices. ¿Qué índices de la propuesta del compañero rechazaste y con qué dato?
 
@@ -360,7 +344,6 @@ Si el patrón reaparece de forma continua, revisaría el diseño:
 por ejemplo, particionar por fecha y retirar particiones completas
 cuando la política de retención y los accesos lo permitan.
 
-### Partes I a L — SCN, control files, redo y FRA
 ### 13. Con tu evidencia 08: ¿qué valores compara Oracle al abrir para decidir si hace falta recuperación?
 
 Oracle compara la información de checkpoint registrada en el
@@ -395,43 +378,206 @@ checkpoints consultados, pero no basta por sí sola para afirmar
 que nunca habrá recuperación: también importa si el cierre
 anterior fue limpio o hubo una caída de instancia.
 
-#### 14. ¿Qué protege la multiplexación del control file en el mismo volumen y qué no? ¿Cómo se haría en producción?
+### 14. ¿Qué protege la multiplexación del control file en el mismo volumen y qué no? ¿Cómo se haría en producción?
 
-Pendiente.
+Protege frente a la pérdida o daño de una copia individual, siempre
+que quede otra copia sana. No protege frente a la pérdida completa
+del volumen que contiene todas las copias, ni sustituye a un backup.
 
-#### 15. Explica los estados CURRENT, ACTIVE e INACTIVE con tu evidencia 10 y por qué Oracle rechaza los tres borrados del paso 4.
+Mi configuración terminó con control01.ctl, control02.ctl y
+control03.ctl bajo /opt/oracle/oradata/FREE/.
 
-Pendiente.
+En el simulacro B se eliminó control03.ctl con la base parada.
+El arranque no pudo completar MOUNT y devolvió ORA-00205.
+Se repuso el archivo desde una copia sana y se completaron
+MOUNT y OPEN, sin restaurar los datafiles.
 
-#### 16. Describe la cadena de causas del escenario de la FRA llena, desde ORA-19815 hasta que la base deja de aceptar cambios.
+En producción, las copias se distribuirían entre almacenamientos
+con dominios de fallo diferentes y se complementarían con backups
+del control file, incluido el autobackup de RMAN.
 
-Pendiente.
 
-### Partes M a P — Undo, WAL y simulacros
+### 15. Explica los estados CURRENT, ACTIVE e INACTIVE con tu evidencia 10 y por qué Oracle rechaza los tres borrados del paso 4.
 
-#### 17. Explica, con los pasos 1 a 4 de tu evidencia 12, la frase «lectores no bloquean a escritores».
+CURRENT identifica el grupo en el que LGWR está escribiendo.
+ACTIVE identifica un grupo que ya no es el actual, pero aún puede
+ser necesario para recuperación de instancia.
+INACTIVE indica que ya no se necesita para esa recuperación;
+en ARCHIVELOG también debe estar archivado antes de reutilizarse.
 
-Pendiente.
+Tras el cambio adicional de mi prueba:
 
-#### 18. ¿Por qué un DELETE genera más undo que un INSERT? ¿Por qué el ROLLBACK también genera redo?
+| Grupo | Secuencia | Miembros | Archivado | Estado |
+|---|---:|---:|---|---|
+| 1 | 19 | 2 | NO | CURRENT |
+| 2 | 17 | 2 | YES | INACTIVE |
+| 3 | 18 | 2 | NO | ACTIVE |
 
-Pendiente.
+Los rechazos realmente observados fueron:
 
-#### 19. Con tu evidencia 13: ¿dónde está la garantía de durabilidad justo después del COMMIT? ¿Y después del checkpoint?
+- ORA-01623 al intentar borrar el grupo CURRENT.
+- ORA-01609 al intentar borrar un miembro del grupo CURRENT.
+- ORA-00350 al intentar borrar otro grupo porque necesitaba archivarse.
 
-Pendiente.
+No obtuve ORA-01567: mi entorno tenía tres grupos y Oracle rechazó
+la tercera operación por otro requisito previo. Por tanto, no
+presento esta ejecución como una demostración del límite mínimo
+de dos grupos.
 
-#### 20. Simulacro A: explica roll forward y roll back con las filas 102 y 103 y las líneas del alert log.
 
-Pendiente.
+### 16. Describe la cadena de causas del escenario de la FRA llena, desde ORA-19815 hasta que la base deja de aceptar cambios.
 
-#### 21. Simulacros C y D: tu RTO y tu RPO en cada uno. ¿Por qué son tan distintos?
+ORA-19815 advierte de presión sobre el espacio disponible de la FRA.
+En mi experimento el límite se redujo a 2 MB cuando ya había
+aproximadamente 9 MB usados: el aviso indicó 100 % y cero espacio
+restante.
 
-Pendiente.
+Al solicitar el archivado de la secuencia 21 aparecieron
+ORA-16038 y ORA-19809: ARCn no pudo crear el archivado porque
+se había superado el límite de la FRA.
 
-#### 22. Clasifica cada error ORA- del bloque 5 de tu runbook: incidente real, efecto del laboratorio o ruido conocido.
+En ARCHIVELOG, un grupo pendiente de archivar no puede reutilizarse.
+Si continúan generándose cambios hasta que no queda un grupo
+reutilizable, el cambio de log puede quedar esperando con
+log file switch (archiving needed), y las operaciones que
+necesitan generar redo quedan bloqueadas.
 
-Pendiente.
+Mi salida demostró el fallo de archivado, no que todas las sesiones
+llegaran a bloquearse ni un ORA-00257.
+
+El script restableció el límite a 4096 MB. Las secuencias 21 y 22
+aparecieron archivadas y la FRA terminó con 10,9 MB usados.
+Se resolvió un límite lógico insuficiente, no un disco físico lleno.
+
+
+### 17. Explica, con los pasos 1 a 4 de tu evidencia 12, la frase «lectores no bloquean a escritores».
+
+La sesión A modificó la fila 101 a EGRESADO sin confirmar.
+Una consulta normal de B obtuvo ACTIVO, la versión confirmada
+anterior, reconstruida mediante undo. No necesitó esperar a que
+A terminara ni leyó su modificación sin confirmar.
+
+La transacción de A, SID 52, consumía un bloque y un registro
+de undo. Se observaron un bloqueo TM en modo 3 y un TX en modo 6.
+
+Cuando B ejecutó SELECT ... FOR UPDATE WAIT 3 sobre la misma fila,
+recibió ORA-00054 y ORA-40097. Esa sentencia ya no era solo una
+lectura consistente: solicitaba un bloqueo incompatible con
+la transacción de A.
+
+La frase se aplica aquí a las consultas normales; no significa
+que SELECT FOR UPDATE nunca bloquee ni espere.
+
+
+### 18. ¿Por qué un DELETE genera más undo que un INSERT? ¿Por qué el ROLLBACK también genera redo?
+
+Para deshacer un INSERT basta la información necesaria para retirar
+las filas y entradas de índice creadas. Para deshacer un DELETE
+hay que poder reconstruir las filas eliminadas y sus entradas
+de índice.
+
+En mi prueba de 10000 pedidos:
+
+| Operación | Bloques de undo | KB en bloques de undo | Redo total KB | Redo del ROLLBACK KB |
+|---|---:|---:|---:|---:|
+| INSERT | 142 | 1136 | 4795 | 355 |
+| UPDATE | 71 | 568 | 1258 | 751 |
+| DELETE | 427 | 3416 | 6627 | 4701 |
+
+El DELETE fue el más costoso de estas operaciones concretas.
+No significa que cualquier DELETE sea siempre más caro que
+cualquier UPDATE, con independencia de sus columnas e índices.
+
+ROLLBACK también modifica bloques al aplicar los cambios inversos.
+Esas modificaciones generan redo. Deshacer no borra el redo
+que ya se había generado.
+
+Además, el redo protege los cambios en los propios bloques de undo:
+en recuperación deben poder reconstruirse antes de deshacer
+las transacciones no confirmadas.
+
+
+### 19. Con tu evidencia 13: ¿dónde está la garantía de durabilidad justo después del COMMIT? ¿Y después del checkpoint?
+
+En esta prueba, justo después del COMMIT la garantía estaba en
+el redo persistido por LGWR en los redo logs online, no en que
+todos los bloques modificados estuvieran ya en los datafiles.
+
+Durante el intervalo UPDATE + COMMIT se registraron:
+7035 KB de redo, 8 escrituras de LGWR, 1 commit y 0 bloques
+escritos desde caché. Todavía había 231 buffers sucios de la tabla.
+
+Después del checkpoint, los buffers sucios de la tabla bajaron
+a 0 y se registraron 557 bloques escritos desde caché.
+Esos 557 corresponden a toda la instancia, no únicamente
+a los 231 buffers de la tabla.
+
+El checkpoint hace avanzar el estado persistido de los datafiles
+y reduce el trabajo pendiente de recuperación; no es lo que
+convierte por primera vez el COMMIT en durable.
+
+El protocolo write-ahead logging exige persistir el redo asociado
+antes de escribir el bloque modificado en su datafile.
+
+
+### 20. Simulacro A: explica roll forward y roll back con las filas 102 y 103 y las líneas del alert log.
+
+Antes de la caída, la fila 102 se cambió a EGRESADO y se confirmó.
+La fila 103 se cambió a INACTIVO sin confirmar.
+
+Tras SHUTDOWN ABORT y el siguiente arranque, el alert log mostró
+Beginning crash recovery, lectura de 1920 KB de redo,
+326 bloques que necesitaban recuperación, aplicación de 1,13 MB
+de redo y Completed crash recovery.
+
+El roll forward rehace los cambios necesarios desde el checkpoint,
+incluidos los que permiten reconstruir el undo.
+El roll back utiliza el undo para deshacer lo no confirmado.
+
+La consulta posterior mostró:
+- 102 = EGRESADO: sobrevivió la transacción confirmada.
+- 103 = ACTIVO: se deshizo la modificación no confirmada.
+
+La instancia abrió con la secuencia de log 24.
+Después se devolvió la fila 102 a ACTIVO.
+
+
+### 21. Simulacros C y D: tu RTO y tu RPO en cada uno. ¿Por qué son tan distintos?
+
+En C, el script midió 129 segundos en el tramo de restauración
+de la copia completa. La ventana entre la copia y el fallo fue
+de 4 segundos: expresa los cambios que podrían quedar fuera
+al volver a la copia, no un recuento de transacciones perdidas.
+
+En D, se midieron 18 segundos desde archivo fuera de línea
+hasta en línea, y 19 segundos desde el fallo.
+El RPO observado para la fila de control fue 0: la fila 104
+conservó EGRESADO, confirmado después del backup.
+
+C restauró toda la base y volvió al estado del respaldo.
+D restauró el archivo 16 y aplicó redo para incorporar cambios
+posteriores. En D hubo que reabrir FREEPDB1, que estaba MOUNTED.
+
+La comparación temporal no es idéntica:
+C informa del tramo de restauración, mientras D ofrece también
+el tiempo desde el fallo. Aun con esa limitación, la prueba muestra
+la diferencia entre restaurar toda la base y reparar un archivo.
+
+
+### 22. Clasifica cada error ORA- del bloque 5 de tu runbook: incidente real, efecto del laboratorio o ruido conocido.
+
+| Error observado | Clasificación e interpretación |
+|---|---|
+| ORA-00202 sobre control03.ctl, 20:22 | Efecto del simulacro B: identifica la copia eliminada deliberadamente y después repuesta. |
+| ORA-205 durante ALTER DATABASE MOUNT, 20:22 | Representación de ORA-00205 en ese mensaje; efecto del fallo de montaje provocado en B. |
+| ORA-01110 sobre el archivo 16, 20:57 | Efecto del simulacro D: identifica academia01.dbf, eliminado deliberadamente. |
+| ORA-63999, 20:57 | Efecto del fallo de medios de D y del cierre de FREEPDB1. |
+| ORA-01113 sobre el archivo 22, 20:58 | Registro histórico durante la reapertura en el contexto de D. La PDB acabó READ WRITE y P.2 dio TODO OK; no demuestra por sí solo un incidente nuevo pendiente. |
+| ORA-00800 [Set Priority Failed], LGWR/VKTM | Aviso de configuración del entorno, no provocado por el borrado de archivos. Requiere revisar trazas para precisar la causa; no se declara resuelto ni inocuo solo porque el chequeo termine con código 0. |
+
+El alert log conserva sucesos anteriores. La clasificación debe
+contrastarse con el estado actual y las pruebas funcionales,
+no interpretar cada mensaje histórico como un fallo activo.
 
 ## 2. Retos y puntos de control
 
@@ -455,7 +601,9 @@ Código de salida: 0.
 No se observó pérdida del cambio confirmado de control:
 RPO observado = 0 para la transacción comprobada.
 
-RTO: pendiente de obtener de las marcas de tiempo de la evidencia.
+Tiempo de recuperación: no medido con la evidencia revisada.
+La limitación y la mejora de instrumentación se recogen en la tabla
+y retrospectiva conjunta de los simulacros.
 
 ### Parte B — Filas por bloque de PEDIDO
 
@@ -485,7 +633,7 @@ filas y los bloques que quedan parcialmente llenos durante la carga.
 El resultado observado es compatible con ello, aunque el recuento
 por sí solo no identifica la causa concreta de cada bloque.
 
-Evidencia: evidencia/script/<nombre-del-log-01-bfr-pedido>
+Evidencia: lab5/evidencia/script/20261116T095128Z_01-bfr-pedido.script.log
 
 #### Simulacro B — Pérdida de un control file
 
@@ -517,7 +665,9 @@ copias actuales del control file y no retroceder los datos.
 Esta salida no incluye una comprobación específica de filas
 para medir de forma independiente esa ausencia de pérdida.
 
-RTO: pendiente de obtener de las marcas de tiempo disponibles.
+Tiempo de recuperación: no medido con la evidencia revisada.
+La limitación y la mejora de instrumentación se recogen en la tabla
+y retrospectiva conjunta de los simulacros.
 
 
 ### Parte C — Interpretación de los gráficos iniciales
@@ -923,7 +1073,7 @@ El script realizó esta secuencia:
 1. Amplió CONTROL_FILES en el SPFILE para incluir control03.ctl.
 2. Ejecutó SHUTDOWN IMMEDIATE.
 3. Copió un control file sano con la base parada, conservando permisos.
-4. Arrancó la instancia y comprobó las tres
+4. Arrancó la instancia y comprobó las tres copias del control file.
 
 ### Parte K — Grupos, miembros y cambios de redo
 
@@ -967,7 +1117,7 @@ CURRENT y pasa a otro al producirse un log switch.
 
 Los miembros de un mismo grupo son copias del mismo redo.
 Añadir miembros mejora la redundancia, pero no aumenta la
-capacidad lógica del grupo: cada grupo sigue siendo de 200
+capacidad lógica del grupo: cada grupo sigue siendo de 200 MB.
 
 ### Parte L — ARCHIVELOG, FRA y fallo controlado de archivado
 
@@ -1320,51 +1470,97 @@ y la Parte del laboratorio que lo demuestra.
 
 | Pregunta | Respuesta | Justificación y Parte |
 |---|---|---|
-| S1 | Pendiente | |
-| S2 | Pendiente | |
-| S3 | Pendiente | |
-| S4 | Pendiente | |
-| S5 | Pendiente | |
-| S6 | Pendiente | |
-| S7 | Pendiente | |
-| S8 | Pendiente | |
-| S9 | Pendiente | |
-| S10 | Pendiente | |
-| S11 | Pendiente | |
-| S12 | Pendiente | |
-| S13 | Pendiente | |
-| S14 | Pendiente | |
-| S15 | Pendiente | |
-| S16 | Pendiente | |
-| S17 | Pendiente | |
-| S18 | Pendiente | |
-| S19 | Pendiente | |
-| S20 | Pendiente | |
-| S21 | Pendiente | |
-| S22 | Pendiente | |
-| S23 | Pendiente | |
-| S24 | Pendiente | |
-| S25 | Pendiente | |
-| S26 | Pendiente | |
+| S1 | B | Un CF cercano al número de filas indica muchos cambios de bloque al recorrer el índice: casi una visita a un bloque diferente por entrada. Parte E: IX_PED_CLIENTE tuvo CF 999041 para 1000000 de filas. |
+| S2 | A y C | Un índice funcional puede indexar UPPER(email); si los datos se guardan en minúsculas, email = LOWER(:e) permite aprovechar el índice normal sin añadir otro. Partes D y F. |
+| S3 | B | Al comparar VARCHAR2 con un número, Oracle aplica TO_NUMBER a la columna. Parte F: el predicado del plan mostró TO_NUMBER("CODIGO_POSTAL") y la comparación con texto redujo las lecturas de 5232 a 106. |
+| S4 | B | Los bitmaps encajan en columnas de baja cardinalidad de un almacén con carga separada de las consultas, evitando el escenario de DML concurrente intensivo. Parte D: prueba de combinación de cuatro bitmaps. |
+| S5 | B | INDEX SKIP SCAN puede aprovechar el índice compuesto aunque no se filtre por la primera columna, especialmente si esta tiene pocos valores distintos. Parte D, consulta Q6. |
+| S6 | B | INVISIBLE permite observar la carga sin que el optimizador utilice normalmente el índice, manteniéndolo disponible para volver a hacerlo VISIBLE. Parte G: prueba con IX_PED_IMPORTE. |
+| S7 | A y C | COALESCE resuelve el recorrido de hojas sin entradas vivas; SHRINK SPACE permite además recuperar espacio del segmento. Parte H: 226 a 2 lecturas tras COALESCE y 4 a 1,69 MB tras el SHRINK posterior. Operar en línea no significa ausencia absoluta de esperas o bloqueos breves. |
+| S8 | B | REVERSE reparte claves secuenciales entre hojas, pero impide el acceso por rango ordenado de la clave original. Parte H: 4 lecturas con el índice normal y 878 con recorrido completo en la tabla con REVERSE. |
+| S9 | C | Un UPDATE de una columna que no participa en índices no tiene que mantener entradas de todos ellos por el mero hecho de existir. Parte G: el coste depende de las columnas indexadas afectadas. |
+| S10 | B | El factor de ramificación determina cuántos hijos caben en cada
 
 ## 4. Simulacros — RTO, RPO y retrospectivas
 
-| Simulacro | RTO medido | RPO real | Evidencia |
+| Simulacro | Tiempo de recuperación observado | RPO / pérdida observada | Evidencia |
 |---|---|---|---|
-| A — Caída de instancia | Pendiente | Pendiente | |
-| B — Pérdida de un control file | Pendiente | Pendiente | |
-| C — Borrado de una tabla | Pendiente | Pendiente | |
-| D — Pérdida de un datafile | Pendiente | Pendiente | |
+| A — Caída de instancia | No medido con la evidencia revisada | 0 para el cambio confirmado de la fila 102; la modificación no confirmada de 103 se deshizo | lab5/evidencia/script/20261116T201755Z_14a-caida-instancia.script.log |
+| B — Control file perdido | No medido con la evidencia revisada | No se retrocedieron los datos; sin comprobación específica de transacciones | lab5/evidencia/script/20261116T202243Z_14b-perdida-controlfile.script.log |
+| C — Tabla borrada | 129 s de restauración | Ventana de exposición de 4 s desde la copia; pérdida de transacciones de negocio no cuantificada | lab5/evidencia/script/20261116T202642Z_14c-simulacro-restauracion.script.log |
+| D — Datafile perdido | 18 s de reparación; 19 s desde el fallo | 0 para el cambio de control posterior al backup | lab5/evidencia/script/20261116T205728Z_14d-perdida-datafile.script.log |
 
-Para cada simulacro:
-- Qué ocurrió y cómo se recuperó.
-- Qué me sorprendió.
-- Qué cambiaría del procedimiento.
+Los tiempos de A y B no se han inferido de los nombres de los logs.
+La falta de cronometraje explícito es una limitación pendiente
+respecto al requisito de medir los cuatro simulacros.
 
 ## 5. Retrospectiva — FRA llena
 
-Pendiente de realizar la Parte L.
+### Resumen e impacto
+
+En el escenario controlado de L.2, se redujo el límite de la FRA
+de 4096 a 2 MB cuando ya había aproximadamente 9 MB usados.
+La solicitud de archivado de la secuencia 21 falló.
+
+Se comprobó un fallo de archivado. No se midió una interrupción
+general de todas las sesiones ni se observó ORA-00257.
+
+### Secuencia observada
+
+1. FRA inicial: 4096 MB de límite y 9 MB usados.
+2. Reducción temporal del límite a 2 MB.
+3. Generación de redo y solicitud de archivado.
+4. ORA-16038 y ORA-19809; ORA-19815 en el alert log.
+5. Restablecimiento del límite a 4096 MB.
+6. Secuencias 21 y 22 archivadas; FRA final de 10,9 MB usados.
+
+### Causa y resolución
+
+La causa fue el límite lógico artificialmente insuficiente,
+no la falta demostrada de espacio físico en disco.
+Se resolvió restituyendo el tamaño y verificando el archivado.
+No se borraron archivos con rm.
+
+### Qué funcionó
+
+El script restauró la configuración dentro de la misma ejecución,
+permitió verificar la recuperación del archivado y terminó con código 0.
+
+### Mejoras propuestas
+
+- Alertar antes de llegar al límite y comprobar también el disco físico.
+- Revisar retención, backups y eliminación gestionada mediante RMAN.
+- Registrar tiempos explícitos de detección y recuperación.
+- Comprobar siempre el tamaño final tras una prueba controlada.
+
+### Relación con el caso L.3 del enunciado
+
+El caso L.3 describe cargas repetidas de TiendaSur que llenaron
+la FRA con redo archivado. Comparte el mecanismo de bloqueo
+del archivado, pero su causa fue acumulación de archivos,
+mientras que mi L.2 redujo deliberadamente el límite.
+No he realizado una reproducción independiente de L.3.
 
 ## 6. Verificación y cierre
 
-Pendiente de realizar las Partes P y Q.
+La ejecución técnica de P.2 terminó con TODO OK y código 0.
+Evidencia:
+`lab5/evidencia/script/20261116T211802Z_16-verificacion-final.script.log`.
+
+Las preguntas de comprobación 1–22 y la tabla S1–S26 están
+respondidas. La tabla del simulacro es una resolución revisada,
+no un intento autónomo cronometrado.
+
+Los tiempos de recuperación de los simulacros A y B no se
+midieron con la evidencia revisada. Esta limitación se recoge
+en la tabla y retrospectiva conjunta.
+
+Siguen pendientes:
+- Revisión y realización de los retos que requieren medidas adicionales.
+- Control de seguridad de archivos e historial.
+- Revisión final de la documentación.
+- Push, Pull Request, revisión y merge.
+- Etiqueta lab5-final y copia final de la base.
+
+El resultado TODO OK valida las comprobaciones del script,
+pero no sustituye el cierre documental ni el flujo de entrega.
