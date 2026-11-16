@@ -1463,6 +1463,31 @@ Se verificaron:
 El resultado valida las comprobaciones del script, no sustituye
 la revisión de las respuestas, los retos y la seguridad del historial.
 
+### Reto P — Consulta de alerta por ocupación de la FRA
+
+Se creó scripts/lab5/15-alerta-fra.sql y se ejecutó mediante
+scripts/ops/ro.sh con la cuenta de solo lectura.
+
+La consulta devuelve una fila únicamente cuando:
+SPACE_LIMIT > 0 y SPACE_USED >= 0,85 × SPACE_LIMIT.
+
+Muestra la ruta de la FRA, MB usados, límite, porcentaje usado
+y espacio potencialmente recuperable.
+
+Resultado observado:
+- 0 filas seleccionadas.
+- Código de salida: 0.
+
+Por tanto, en el momento de la consulta no se cumplía el umbral
+de alerta. Esta salida no proporciona el porcentaje exacto de uso.
+
+La ejecución comprobó el camino sin alerta. No se forzó el
+umbral modificando la FRA, por lo que no se afirma haber probado
+el camino positivo contra una FRA real al 85 %.
+
+La consulta define una condición para monitorización:
+no envía notificaciones ni realiza acciones correctoras.
+
 ## 3. Simulacro de examen S1–S26
 
 Para cada pregunta: letra o letras elegidas, una frase de justificación
