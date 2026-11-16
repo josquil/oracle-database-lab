@@ -991,6 +991,75 @@ permite deshacer las transacciones no confirmadas.
 
 La ejecución de M.2 terminó con código 0.
 
+### Parte N — LGWR, DBWn y write-ahead logging
+
+La prueba comenzó con un checkpoint y comprobó que no quedaban
+buffers sucios de la tabla observada. Después ejecutó un UPDATE
+de 20000 filas, asignando el mismo valor, confirmó y finalmente
+forzó otro checkpoint.
+
+| Intervalo | Redo KB | Escrituras LGWR | Commits | Bloques escritos desde caché | Buffers sucios de la tabla al final |
+|---|---:|---:|---:|---:|---:|
+| UPDATE de 20000 filas + COMMIT | 7035 | 8 | 1 | 0 | 231 |
+| ALTER SYSTEM CHECKPOINT | 13 | 1 | 0 | 557 | 0 |
+
+Las columnas de actividad representan incrementos entre medidas.
+La columna de buffers sucios representa el estado de la tabla
+en cada punto, no un incremento.
+
+#### COMMIT y LGWR
+
+Durante el UPDATE y su confirmación se generaron 7035 KB de redo,
+se registraron 8 escrituras de LGWR y 1 commit.
+
+No se registraron bloques escritos desde caché en ese intervalo,
+y al terminar todavía había 231 buffers sucios de la tabla.
+Por tanto, el COMMIT no esperó a que esos bloques se escribieran
+en los datafiles.
+
+Los 7035 KB y las 8 escrituras corresponden al intervalo completo:
+no son el coste aislado de la instrucción COMMIT ni significan
+que un commit siempre produzca ocho escrituras.
+
+#### Checkpoint y DBWn
+
+Durante el checkpoint se registraron 557 bloques escritos desde
+caché y los buffers sucios de la tabla pasaron de 231 a 0.
+
+Los 557 bloques no deben atribuirse únicamente a esos 231 buffers:
+las estadísticas de escritura son de toda la instancia, mientras
+que el recuento de buffers sucios está filtrado por la tabla.
+
+El intervalo del checkpoint también registró 13 KB de redo y
+una escritura de LGWR. La actividad de fondo y otros trabajos
+de la instancia pueden contribuir a esas cifras.
+
+DBWn escribe los bloques de datos. CKPT registra la información
+del checkpoint en el control file y en las cabeceras de los
+datafiles; no sustituye a DBWn en la escritura de bloques de tabla.
+
+#### Write-ahead logging y durabilidad
+
+Antes de escribir un bloque modificado en su datafile, debe
+haberse persistido el redo asociado a esos cambios.
+Ese orden es el protocolo write-ahead logging.
+
+Esto no significa que DBWn solo pueda escribir después del COMMIT:
+puede escribir bloques con cambios de transacciones no confirmadas,
+siempre que el redo necesario esté protegido.
+
+Tampoco significa que DBWn solo escriba al ejecutar un checkpoint
+manual; también trabaja durante el funcionamiento normal.
+
+Si la instancia cae después de confirmar pero antes de escribir
+los bloques de datos, la recuperación puede rehacer los cambios
+a partir del redo. El undo permite deshacer lo no confirmado.
+
+La prueba mostró actividad y buffers sucios pese a asignar el
+mismo valor: un UPDATE sin cambio lógico no debe suponerse gratuito.
+
+La ejecución terminó con código 0.
+
 ## 3. Simulacro de examen S1–S26
 
 Para cada pregunta: letra o letras elegidas, una frase de justificación
