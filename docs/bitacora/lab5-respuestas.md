@@ -1658,3 +1658,44 @@ Siguen pendientes:
 
 El resultado TODO OK valida las comprobaciones del script,
 pero no sustituye el cierre documental ni el flujo de entrega.
+
+### Reto I — MTTR y carga de escritura
+
+Se consultó V$INSTANCE_RECOVERY desde CDB$ROOT en tres momentos:
+tras un checkpoint inicial, después de una carga de escritura con
+COMMIT y tras un checkpoint final.
+
+La carga consistió en actualizar TELEFONO con su propio valor
+en TIENDASUR.CLIENTE, limitando el UPDATE a 20000 filas.
+La salida conservada no muestra SQL%ROWCOUNT, por lo que no se
+afirma un recuento exacto de filas actualizadas.
+
+| Momento | ESTIMATED_MTTR (s) | ACTUAL_REDO_BLKS | RECOVERY_ESTIMATED_IOS |
+|---|---:|---:|---:|
+| A. Tras checkpoint inicial | 11 | 0 | 7 |
+| B. Tras UPDATE y COMMIT | 11 | 0 | 413 |
+| C. Tras checkpoint final | 11 | 0 | 3 |
+
+RECOVERY_ESTIMATED_IOS representa el número de búferes sucios
+en caché. Tras la carga pasó de 7 a 413 y, tras el checkpoint
+final, descendió a 3.
+
+ESTIMATED_MTTR permaneció en 11 segundos en las tres muestras.
+Por tanto, la prueba muestra una variación de búferes sucios,
+pero no un aumento observable del MTTR estimado.
+
+ACTUAL_REDO_BLKS permaneció en cero. Este indicador representa
+redo requerido para recuperación en el instante observado,
+no el redo total generado por la carga.
+
+No se ejecutó un checkpoint manual entre A y B, pero tampoco
+se deshabilitó la actividad automática de escritura/checkpoint.
+Las muestras corresponden a la instancia y pueden incluir
+actividad de fondo, no exclusivamente la sesión de prueba.
+
+No se provocó un fallo: los 11 segundos son una estimación,
+no una duración de recuperación medida.
+
+Script: scripts/lab5/08-reto-mttr.sql.
+Evidencia: registro *_08-reto-mttr.script.log.
+Código de salida: 0.
