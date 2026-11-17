@@ -1699,3 +1699,62 @@ no una duración de recuperación medida.
 Script: scripts/lab5/08-reto-mttr.sql.
 Evidencia: registro *_08-reto-mttr.script.log.
 Código de salida: 0.
+
+### Reto M — Coste de las operaciones y sus ROLLBACK en la FRA
+
+Con la base en ARCHIVELOG se midió SPACE_USED de
+V$RECOVERY_FILE_DEST, se ejecutó de nuevo la prueba
+12-undo-y-redo.sql y se forzó ALTER SYSTEM ARCHIVE LOG CURRENT.
+
+La prueba ejecuta INSERT, UPDATE y DELETE de 10000 pedidos
+y deshace cada operación mediante ROLLBACK.
+
+Aunque la salida utiliza la etiqueta KB, el script divide
+entre 1024, por lo que las cantidades corresponden a KiB.
+
+| Operación | Redo operación (KiB) | Redo ROLLBACK (KiB) | Total (KiB) |
+|---|---:|---:|---:|
+| INSERT | 3947 | 339 | 4286 |
+| UPDATE | 1258 | 751 | 2009 |
+| DELETE | 6620 | 4701 | 11321 |
+| Total | 11825 | 5791 | 17616 |
+
+El redo total medido suma aproximadamente 17,20 MiB.
+Los valores individuales están redondeados por el script.
+
+No se suma de nuevo la columna «del cual describe el undo»:
+es una parte del redo total de cada operación.
+
+El DELETE fue el más caro en esta ejecución:
+427 bloques de undo, frente a 138 del INSERT y 71 del UPDATE.
+Además, deshacer el DELETE produjo 4701 KiB de redo.
+ROLLBACK no elimina el redo ya generado y también genera redo.
+
+#### Crecimiento observado de la FRA
+
+- SPACE_USED inicial: 133227008 bytes.
+- SPACE_USED final: 227620352 bytes.
+- Incremento: 94393344 bytes, equivalentes a 90,02 MiB.
+
+El crecimiento de la FRA fue mayor que el redo medido
+en la sesión. Las magnitudes tienen distinto alcance:
+SPACE_USED contabiliza archivos de recuperación, mientras
+que las medidas del script corresponden al redo de las
+operaciones de la sesión y de sus ROLLBACK.
+
+ARCHIVE LOG CURRENT fuerza el cambio y archivado del log
+actual y puede incluir logs anteriores pendientes.
+El archivado puede incorporar redo generado antes de la
+medida inicial de SPACE_USED, además de actividad concurrente.
+
+No se realizó un archivado de referencia antes de la medida
+inicial ni se capturaron las secuencias archivadas antes y
+después. Por tanto, no se atribuyen los 90,02 MiB exclusivamente
+a esta carga ni se cuantifica la contribución de cada causa.
+
+La conclusión es que deshacer los cambios no evita su coste
+en redo ni el espacio de archivado asociado.
+
+Script: scripts/lab5/12-reto-fra-redo.sql.
+Evidencia: registro *_12-reto-fra-redo.script.log.
+Código de salida: 0.
