@@ -1928,6 +1928,33 @@ Limitaciones conservadas:
   los simulacros A y B en la evidencia revisada.
 - Las limitaciones específicas de cada experimento se
   explican en su apartado.
+### Control de seguridad previo al push
+
+Se buscaron los valores actuales de ORACLE_PWD y OPS_RO_PWD
+sin imprimirlos:
+
+- Sin coincidencias en los archivos versionados actuales.
+- Sin coincidencias en los commits alcanzables desde las
+  referencias locales revisadas, incluida la rama experimental.
+
+La búsqueda por nombres no encontró en la versión actual
+config/.env, backups ni archivos con extensiones
+.dbf, .ctl, .arc, .bkp o .trc.
+
+Se comprobaron las reglas de exclusión de:
+- config/.env.
+- backups/.
+- *:Zone.Identifier.
+
+En el historial aparecieron nueve auxiliares Zone.Identifier.
+Las versiones inspeccionadas contenían metadatos de descarga
+y una ruta local al ZIP del kit, no contraseñas ni tokens.
+Esos auxiliares no están presentes en la versión actual.
+No se reescribió el historial.
+
+Alcance: la búsqueda de contraseñas comprobó los dos valores
+actuales; no constituye una auditoría exhaustiva de otros
+secretos ni de contraseñas anteriores.
 
 Pendiente para cerrar la entrega:
 - Resolver o declarar expresamente el reto H.
