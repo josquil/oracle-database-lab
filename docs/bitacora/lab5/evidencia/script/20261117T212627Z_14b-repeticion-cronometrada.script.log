@@ -1,0 +1,46 @@
+[1794950787394] ALCANCE: marcas de recepcion de salida; script original sin modificar
+[1794950787399] INICIO_EXTERNO_MS=1794950787394
+[1794950788097] Copia sana que se usará para reparar: /opt/oracle/oradata/FREE/control01.ctl
+[1794950788102] == 1. Parada limpia y 'desastre': se borra /opt/oracle/oradata/FREE/control03.ctl ==
+[1794950790623] Database closed.
+[1794950790726] Database dismounted.
+[1794950792029] ORACLE instance shut down.
+[1794950792459] == 2. Arranque: falla al MONTAR (ORA-00205 esperado) ==
+[1794950796336] ORACLE instance started.
+[1794950796383] 
+[1794950796388] Total System Global Area 1603398928 bytes
+[1794950796400] Fixed Size		    5033232 bytes
+[1794950796404] Variable Size		  687865856 bytes
+[1794950796438] Database Buffers	  905969664 bytes
+[1794950796443] Redo Buffers		    4530176 bytes
+[1794950796595] ORA-00205: error in identifying control file, check alert log for more info
+[1794950796600] Help: https://docs.oracle.com/error-help/db/ora-00205/
+[1794950796611] 
+[1794950796621] 
+[1794950796672] 
+[1794950796686] STATUS
+[1794950796702] ------------
+[1794950796707] STARTED
+[1794950796722] 
+[1794950796808] == 3. Diagnóstico: el alert log dice QUÉ archivo falta ==
+[1794950797196] ORA-00202: control file: '/opt/oracle/oradata/FREE/control03.ctl'
+[1794950797205] ORA-27037: unable to obtain file status
+[1794950797212] ORA-00202: control file: '/opt/oracle/oradata/FREE/control03.ctl'
+[1794950797217] ORA-27037: unable to obtain file status
+[1794950797223] == 4. Reparación: copiar una copia sana y continuar el arranque desde NOMOUNT ==
+[1794950798526] 
+[1794950798538] Database altered.
+[1794950798549] 
+[1794950810110] 
+[1794950810119] Database altered.
+[1794950810127] 
+[1794950810141] 
+[1794950810147] NAME						 STATUS
+[1794950810165] ------------------------------------------------ -------
+[1794950810170] /opt/oracle/oradata/FREE/control01.ctl
+[1794950810193] /opt/oracle/oradata/FREE/control02.ctl
+[1794950810201] /opt/oracle/oradata/FREE/control03.ctl
+[1794950810209] 
+[1794950811396]   t=0s  docker=healthy  cdb/pdb=READWRITE/READWRITE
+[1794950811410] FIN_EXTERNO_MS=1794950811400
+[1794950811421] CODIGO_SCRIPT=0

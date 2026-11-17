@@ -1,0 +1,62 @@
+
+Session altered.
+
+
+PL/SQL procedure successfully completed.
+
+===== A. Consulta original, sin indices del reto =====
+RF original sin indices        filas=    981  lecturas l??gicas=   1487  f??sicas=    0       62 ms
+                               plan: TABLE ACCESS FULL CLIENTE
+
+PL/SQL procedure successfully completed.
+
+===== B. Telefono reescrito, todavia sin indices del reto =====
+RF reescrita sin indices       filas=    981  lecturas l??gicas=   1487  f??sicas=    0     44.6 ms
+                               plan: TABLE ACCESS FULL CLIENTE
+
+PL/SQL procedure successfully completed.
+
+===== Crear indices temporales exclusivos del reto =====
+
+Index created.
+
+
+Index created.
+
+===== C. Reescrita con las dos ramas indexadas =====
+RF reescrita con indices       filas=    981  lecturas l??gicas=   1568  f??sicas=    1       72 ms
+                               plan: VIEW  VW_ORE_838CF3A7 > UNION-ALL > TABLE ACCESS BY INDEX ROWID BATCHED CLIENTE > INDEX RANGE SCAN IX_RF_TELEFONO > TABLE ACCESS BY INDEX ROWID BATCHED CLIENTE > INDEX RANGE SCAN IX_R
+F_APE_UPPER
+
+PL/SQL procedure successfully completed.
+
+===== Verificar igualdad de los conjuntos de clientes =====
+
+DIFERENCIA          FILAS
+-------------- ----------
+SOLO_ORIGINAL           0
+SOLO_REESCRITA          0
+
+2 rows selected.
+
+===== Limpieza: retirar solo los indices de este reto =====
+
+Index dropped.
+
+
+Index dropped.
+
+
+INDICES_TEMPORALES_RESTANTES
+----------------------------
+                           0
+
+1 row selected.
+
+
+INDICES_TIENDASUR
+-----------------
+                9
+
+1 row selected.
+

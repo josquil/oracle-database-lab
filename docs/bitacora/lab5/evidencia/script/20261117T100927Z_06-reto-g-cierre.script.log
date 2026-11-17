@@ -1,0 +1,64 @@
+
+Session altered.
+
+===== A. Estadisticas de los indices comparados =====
+
+INDEX_NAME		       BLEVEL LEAF_BLOCKS   NUM_ROWS DISTINCT_KEYS CLUSTERING_FACTOR VISIBILITY   STATUS
+-------------------------- ---------- ----------- ---------- ------------- ----------------- ------------ --------
+IX_PED_CLI_FEC_CUB		    2	     5179    1039595	   1039595	     1038610 VISIBLE	  VALID
+IX_PED_FECHA			    2	     2653    1000000	    998528		5220 VISIBLE	  VALID
+IX_PED_FEC_IMP_Q11		    2	     3321    1000000	   1000000		5220 VISIBLE	  VALID
+
+3 rows selected.
+
+===== B. Espacio asignado =====
+
+INDEX_NAME		   BYTES_ASIGNADOS	  MIB
+-------------------------- --------------- ----------
+IX_PED_CLI_FEC_CUB		  41943040	   40
+IX_PED_FECHA			  23068672	   22
+IX_PED_FEC_IMP_Q11		  28311552	   27
+
+3 rows selected.
+
+===== C. Columnas para comprobar prefijos y solapamiento =====
+
+INDEX_NAME		   COLUMN_POSITION COLUMN_NAME
+-------------------------- --------------- --------------------------
+IX_PED_CLI_FEC_CUB			 1 ID_CLIENTE
+IX_PED_CLI_FEC_CUB			 2 FECHA_PEDIDO
+IX_PED_CLI_FEC_CUB			 3 IMPORTE
+IX_PED_CLI_FEC_CUB			 4 ESTADO
+IX_PED_CLI_FEC_CUB			 5 ID_PEDIDO
+IX_PED_CP				 1 CODIGO_POSTAL
+IX_PED_FECHA				 1 FECHA_PEDIDO
+IX_PED_FEC_IMP_Q11			 1 FECHA_PEDIDO
+IX_PED_FEC_IMP_Q11			 2 IMPORTE
+IX_PED_PENDIENTES			 1 FECHA_PENDIENTE
+PK_PEDIDO				 1 ID_PEDIDO
+
+11 rows selected.
+
+===== D. Retirar exclusivamente el candidato experimental =====
+
+Index dropped.
+
+===== E. Comprobar configuracion restaurada =====
+
+CANDIDATOS_RESTANTES
+--------------------
+		   0
+
+1 row selected.
+
+
+INDEX_NAME		   VISIBILITY	STATUS
+-------------------------- ------------ --------
+IX_PED_CLI_FEC_CUB	   VISIBLE	VALID
+IX_PED_CP		   VISIBLE	VALID
+IX_PED_FECHA		   VISIBLE	VALID
+IX_PED_PENDIENTES	   VISIBLE	VALID
+PK_PEDIDO		   VISIBLE	VALID
+
+5 rows selected.
+

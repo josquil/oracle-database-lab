@@ -1,0 +1,31 @@
+===== Modo actual de archivado =====
+
+LOG_MODE
+------------
+ARCHIVELOG
+
+===== Completar la vuelta a los tres grupos =====
+
+System altered.
+
+===== Grupos tras el cambio adicional =====
+
+    GROUP#  SEQUENCE#	 MEMBERS ARC STATUS
+---------- ---------- ---------- --- ----------------
+	 1	   19	       2 NO  CURRENT
+	 2	   17	       2 YES INACTIVE
+	 3	   18	       2 NO  ACTIVE
+
+===== Estado de todos los miembros =====
+
+    GROUP# MEMBER							     STATUS
+---------- ----------------------------------------------------------------- -------
+	 1 /opt/oracle/oradata/FREE/redo01.log
+	 1 /opt/oracle/oradata/FREE/redo01b.log
+	 2 /opt/oracle/oradata/FREE/redo02.log
+	 2 /opt/oracle/oradata/FREE/redo02b.log
+	 3 /opt/oracle/oradata/FREE/redo03.log
+	 3 /opt/oracle/oradata/FREE/redo03b.log
+
+6 rows selected.
+
