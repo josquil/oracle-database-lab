@@ -119,7 +119,7 @@ La raíz de PK_CLIENTE tiene 186 entradas separadoras más el hijo
 izquierdo kdxbrlmc: en total, 187 hijos, correspondientes a sus
 187 hojas.
 
-#### 6. Elige tres pruebas de la Parte D y explica, con las lecturas lógicas medidas, por qué un tipo de índice gana al otro.
+### 6. Elige tres pruebas de la Parte D y explica, con las lecturas lógicas medidas, por qué un tipo de índice gana al otro.
 
 He elegido tres comparaciones de mi evidencia 03:
 
@@ -581,95 +581,6 @@ no interpretar cada mensaje histórico como un fallo activo.
 
 ## 2. Retos y puntos de control
 
-#### Simulacro A — Caída de instancia
-
-La instancia se detuvo mediante SHUTDOWN ABORT y recuperó
-automáticamente al arrancar.
-
-Tras el arranque:
-- La fila 102 conservó EGRESADO, cambio confirmado antes de la caída.
-- La fila 103 mostró ACTIVO: el cambio no confirmado se deshizo.
-
-El alert log registró Beginning crash recovery, lectura de
-1920 KB de redo, 326 bloques de datos que necesitaban recuperación,
-aplicación de 1,13 MB de redo y Completed crash recovery.
-La instancia abrió con la secuencia de log 24.
-
-El script ejecutó después la reparación de la fila 102 a ACTIVO.
-Código de salida: 0.
-
-No se observó pérdida del cambio confirmado de control:
-RPO observado = 0 para la transacción comprobada.
-
-Tiempo de recuperación: no medido con la evidencia revisada.
-La limitación y la mejora de instrumentación se recogen en la tabla
-y retrospectiva conjunta de los simulacros.
-
-### Parte B — Filas por bloque de PEDIDO
-
-Enunciado: calcular con DBMS_ROWID.ROWID_BLOCK_NUMBER cuántas filas
-hay en los bloques de PEDIDO (mínimo, media y máximo), compararlo
-con NUM_ROWS / BLOCKS y explicar por qué los bloques no contienen
-todos el mismo número de filas.
-
-Resultado:
-- Filas totales: 1000000.
-- Bloques con filas: 5220.
-- Mínimo: 2 filas por bloque.
-- Media: 191,57 filas por bloque con filas.
-- Máximo: 200 filas por bloque.
-- Estadísticas: NUM_ROWS = 1000000 y BLOCKS = 5320.
-- BFR estadístico: 187,97.
-- Código de salida: 0.
-
-Interpretación:
-La media directa utiliza solamente los 5220 bloques que contienen
-filas. El cálculo estadístico utiliza 5320 bloques, por lo que su
-denominador es mayor y el resultado es menor. No son exactamente
-la misma medida.
-
-La ocupación no es uniforme: influyen la longitud variable de las
-filas y los bloques que quedan parcialmente llenos durante la carga.
-El resultado observado es compatible con ello, aunque el recuento
-por sí solo no identifica la causa concreta de cada bloque.
-
-Evidencia: lab5/evidencia/script/20261116T095128Z_01-bfr-pedido.script.log
-
-#### Simulacro B — Pérdida de un control file
-
-Se realizó una parada limpia y se eliminó:
-`/opt/oracle/oradata/FREE/control03.ctl`.
-
-El siguiente STARTUP inició la instancia, pero no pudo montar
-la base. Mostró ORA-00205 y V$INSTANCE.STATUS = STARTED:
-la instancia había alcanzado NOMOUNT, no MOUNT.
-
-El alert log identificó el archivo ausente mediante ORA-00202
-y mostró ORA-27037, al no poder obtener su estado en el sistema
-operativo.
-
-Con la base sin montar se repuso control03.ctl copiando otra
-copia sana, conservada tras la misma parada limpia.
-Después se completaron ALTER DATABASE MOUNT y ALTER DATABASE OPEN.
-
-V$CONTROLFILE volvió a mostrar las tres copias.
-La comprobación final indicó:
-docker=healthy y cdb/pdb=READWRITE/READWRITE.
-Código de salida: 0.
-
-No fue necesario restaurar datafiles ni volver a una copia
-histórica de la base. La reparación utilizó la multiplexación.
-
-No se esperaba pérdida de transacciones confirmadas, al conservar
-copias actuales del control file y no retroceder los datos.
-Esta salida no incluye una comprobación específica de filas
-para medir de forma independiente esa ausencia de pérdida.
-
-Tiempo de recuperación: no medido con la evidencia revisada.
-La limitación y la mejora de instrumentación se recogen en la tabla
-y retrospectiva conjunta de los simulacros.
-
-
 ### Parte C — Interpretación de los gráficos iniciales
 
 | Índice | Hojas | Ocupación viva media | Entradas borradas | Hojas vacías |
@@ -737,45 +648,6 @@ claves influyen en su estructura y ocupación.
 
 El reto terminó con código de salida 0.
 
-#### Simulacro C — Borrado de tabla y restauración completa
-
-El script creó previamente una copia de 1,3 GB:
-
-`backups/20261116T202648Z_lab5-pre-simulacro`.
-
-Antes del fallo, ACA_MATRICULAS contenía 60000 filas.
-
-En la primera prueba se ejecutó DROP TABLE sin PURGE.
-La tabla y sus índices aparecieron en la papelera, y
-FLASHBACK TABLE ... TO BEFORE DROP recuperó la tabla.
-El recuento posterior volvió a ser de 60000 matrículas.
-
-En la segunda prueba se ejecutó DROP TABLE ... PURGE.
-La consulta posterior devolvió ORA-00942, resultado esperado:
-la tabla ya no existía y no podía recuperarse mediante la papelera.
-
-Se restauró la copia completa lab5-pre-simulacro.
-FREEPDB1 volvió a READ WRITE y ACA_MATRICULAS recuperó
-sus 60000 filas.
-
-Métricas:
-- Tiempo de restauración medido por el script: 129 segundos.
-- Ventana entre la copia y el fallo: 4 segundos.
-- Código de salida: 0.
-
-Los 129 segundos corresponden al tramo de restauración cronometrado,
-no necesariamente a todo el tiempo transcurrido desde el borrado.
-
-La restauración devolvió toda la base al estado de la copia:
-cualquier cambio posterior a ella habría quedado fuera del
-estado recuperado. La ventana de 4 segundos expresa esa exposición
-temporal; no cuantifica transacciones de negocio realmente perdidas.
-
-La prueba demuestra la diferencia entre recuperar una tabla
-con la papelera y restaurar toda la base por el daño de una
-sola tabla. La segunda opción afecta también al estado de las
-demás tablas.
-
 ### Parte D — ¿Haría cubriente el índice de Q9?
 
 No añadiría columnas a IX_PED_FECHA para esta consulta: recuperar
@@ -789,61 +661,6 @@ La prueba devolvió 20 filas, sin lecturas físicas, y terminó con código 0.
 
 Esta decisión se basa en el bajo coste medido; no he creado ni medido
 un índice cubriente alternativo para Q9.
-
-#### Simulacro D — Pérdida y recuperación de un datafile
-
-El camino observado requirió reabrir FREEPDB1:
-tras reparar el archivo, la PDB estaba MOUNTED y el script
-ejecutó su apertura. La comprobación posterior mostró READ WRITE.
-
-Después de RESTORE y RECOVER, la fila 104 apareció en EGRESADO,
-valor confirmado después de la copia RMAN. Por tanto, el estado
-recuperado incorporó redo posterior al backup.
-
-El RPO observado para la transacción de control fue 0:
-el cambio confirmado sobrevivió a la pérdida del datafile.
-
-Métricas del script:
-- Archivo fuera de línea hasta en línea: 18 segundos.
-- Tiempo desde el fallo: 19 segundos.
-- Código de salida: 0.
-
-El script ejecutó después la devolución de la fila 104 a ACTIVO.
-El recuento final de ACA_ESTUDIANTES fue de 20000 filas.
-
-A diferencia del simulacro C, que restauró toda la base en
-129 segundos y volvió al estado de la copia, este procedimiento
-recuperó el archivo afectado e incorporó los cambios posteriores
-mediante redo.
-
-La comparación temporal tiene un límite: los 129 segundos de C
-corresponden al tramo de restauración, mientras que D ofrece
-tanto el tramo de reparación (18 segundos) como el tiempo
-desde el fallo (19 segundos).
-El archivo afectado fue el datafile 16:
-`/opt/oracle/oradata/FREE/FREEPDB1/academia01.dbf`.
-
-El backup RMAN terminó antes del fallo, con etiqueta
-LAB5_SIMULACRO_D, y se guardó en la FRA. También se generó
-un autobackup.
-
-El diagnóstico mostró:
-- ORA-01116: no se pudo abrir el archivo de base de datos.
-- ORA-01110: identificó el número 16 y su ruta.
-- ORA-27041: fallo al abrir el archivo en el sistema operativo.
-- Linux Error 2: el archivo no existía.
-
-Antes de reparar, FREEPDB1 ya estaba MOUNTED.
-El script indicó el camino de cierre por fallo de medios
-asociado a ORA-63999; el fragmento de alert log mostrado
-no incluye directamente ese código.
-
-RMAN restauró el datafile 16 en su ruta y completó
-media recovery. Después se puso el archivo en línea y
-se abrió de nuevo FREEPDB1.
-
-La consulta final mostró READ WRITE y la fila 104 en EGRESADO,
-confirmando la recuperación del cambio posterior al backup.
 
 ### Parte E — Curva del punto de equilibrio
 
@@ -1018,6 +835,32 @@ DML. No contiene una nueva medición de todas las consultas de lectura
 tras V005, por lo que no atribuyo a este registro cifras de lectura
 del diseño final que no se hayan medido aquí.
 
+### Reto G — Propuesta propia V006
+
+Experimento realizado en la rama experiment/7-v006-q11-covering,
+commit 2e86303.
+
+Se evaluó un índice sobre PEDIDO(FECHA_PEDIDO, IMPORTE) para Q11.
+Las lecturas lógicas descendieron de 5046 a 3340, pero el índice
+añadió 27 MiB y aumentó el coste de INSERT, UPDATE de IMPORTE
+y DELETE.
+
+Decisión: no incorporar V006 por ahora, al no haberse justificado
+la frecuencia de Q11 ni el beneficio global sobre la carga.
+
+La migración propuesta permanece exclusivamente en la rama
+experimental. No se fusionó ni se incorporó a las migraciones
+de esta rama del laboratorio.
+
+El índice experimental se eliminó de la base; PEDIDO quedó
+con los cinco índices de V005, todos VISIBLE y VALID.
+
+Informe con las cinco preguntas y descripción propuesta del PR:
+docs/bitacora/lab5/reto-g-v006.md.
+
+Los scripts de prueba y las cuatro evidencias se conservan
+también en esta rama para facilitar la revisión.
+
 ### Parte H — Divisiones, patrón cola y remedios
 
 - IX_AZAR: 595 divisiones, ninguna 90/10, 596 hojas y 75,4 %
@@ -1101,6 +944,48 @@ positivo mediante ese parámetro. Esto no significa que no existan
 checkpoints ni que la recuperación tarde cero segundos.
 
 La ejecución terminó con código 0.
+
+### Reto I — MTTR y carga de escritura
+
+Se consultó V$INSTANCE_RECOVERY desde CDB$ROOT en tres momentos:
+tras un checkpoint inicial, después de una carga de escritura con
+COMMIT y tras un checkpoint final.
+
+La carga consistió en actualizar TELEFONO con su propio valor
+en TIENDASUR.CLIENTE, limitando el UPDATE a 20000 filas.
+La salida conservada no muestra SQL%ROWCOUNT, por lo que no se
+afirma un recuento exacto de filas actualizadas.
+
+| Momento | ESTIMATED_MTTR (s) | ACTUAL_REDO_BLKS | RECOVERY_ESTIMATED_IOS |
+|---|---:|---:|---:|
+| A. Tras checkpoint inicial | 11 | 0 | 7 |
+| B. Tras UPDATE y COMMIT | 11 | 0 | 413 |
+| C. Tras checkpoint final | 11 | 0 | 3 |
+
+RECOVERY_ESTIMATED_IOS representa el número de búferes sucios
+en caché. Tras la carga pasó de 7 a 413 y, tras el checkpoint
+final, descendió a 3.
+
+ESTIMATED_MTTR permaneció en 11 segundos en las tres muestras.
+Por tanto, la prueba muestra una variación de búferes sucios,
+pero no un aumento observable del MTTR estimado.
+
+ACTUAL_REDO_BLKS permaneció en cero. Este indicador representa
+redo requerido para recuperación en el instante observado,
+no el redo total generado por la carga.
+
+No se ejecutó un checkpoint manual entre A y B, pero tampoco
+se deshabilitó la actividad automática de escritura/checkpoint.
+Las muestras corresponden a la instancia y pueden incluir
+actividad de fondo, no exclusivamente la sesión de prueba.
+
+No se provocó un fallo: los 11 segundos son una estimación,
+no una duración de recuperación medida.
+
+Script: scripts/lab5/08-reto-mttr.sql.
+Evidencia: registro *_08-reto-mttr.script.log.
+Código de salida: 0.
+
 
 ### Parte J — Contenido y multiplexación de los control files
 
@@ -1187,6 +1072,124 @@ CURRENT y pasa a otro al producirse un log switch.
 Los miembros de un mismo grupo son copias del mismo redo.
 Añadir miembros mejora la redundancia, pero no aumenta la
 capacidad lógica del grupo: cada grupo sigue siendo de 200 MB.
+
+### Reto K — Dimensionamiento del redo de TiendaSur
+
+#### Evidencia y alcance
+
+Se ejecutó scripts/lab5/10-reto-dimensionamiento.sql
+con código de salida 0.
+
+La configuración actual contiene tres grupos de 200 MiB,
+con dos miembros por grupo. Los seis miembros aparecieron
+sin estados INVALID ni STALE.
+
+El spool de V004 confirma la creación del banco, la inserción
+de 100000 clientes y 1000000 de pedidos y la presentación
+final de sus estadísticas.
+
+Evidencia de la carga:
+lab5/evidencia/spool/20261116T093852Z_01-V004__banco_tiendasur.spool.log.
+
+El spool no contiene marcas temporales internas suficientes
+para delimitar exactamente el inicio y final de la carga.
+La hora de las 09:00 UTC se utiliza como referencia documental,
+no como un intervalo de carga aislado y cronometrado.
+
+#### Historial observado
+
+V$LOG_HISTORY mostró estos registros para el 16 de noviembre
+de 2026 entre las 09:00 y las 09:59 UTC:
+
+| Secuencia | FIRST_TIME |
+|---|---|
+| 8 | 2026-11-16 09:32:25 |
+| 9 | 2026-11-16 09:39:17 |
+
+El recuento por hora solicitado en el reto da 2 registros.
+
+FIRST_TIME identifica la primera entrada del log.
+El recuento no mide directamente el redo generado por V004
+ni distingue por sí solo cambios automáticos de los manuales.
+
+No se utiliza el máximo de 7 registros de las 13:00 como
+carga de TiendaSur: esa franja incluye pruebas con cambios
+manuales y archivado documentadas en K y L.
+
+#### Estimación y propuesta
+
+Como aproximación convencional, si los dos registros
+representaran dos grupos completos de 200 MiB generados
+dentro de la hora, el volumen sería:
+
+2 × 200 = 400 MiB.
+
+Para cuatro grupos completos por hora, el tamaño teórico
+sería aproximadamente:
+
+400 / 4 = 100 MiB por grupo.
+
+Es un cálculo condicionado, no una medición de bytes:
+no se ha demostrado que los grupos se llenaran por completo
+ni que todo su contenido se generara dentro de esa hora.
+
+No propongo reducir el tamaño a 100 MiB.
+Conservaría los 200 MiB actuales, manteniendo margen y
+evitando un cambio no justificado por el historial observado.
+
+El recuento de la hora de referencia es inferior a cuatro.
+No se garantiza ese límite para cargas futuras ni para
+cualquier ventana móvil de una hora.
+
+Los dos miembros son copias: no se multiplican por dos
+los 200 MiB de capacidad lógica del grupo.
+
+#### Procedimiento de migración, solo documental
+
+La decisión actual es conservar el tamaño, por lo que no
+se requiere migración.
+
+Si hubiera que sustituir los grupos por otros de 200 MiB,
+el procedimiento sería añadir grupos nuevos con dos miembros,
+hacerlos entrar en uso y retirar los antiguos solo cuando
+estuvieran INACTIVE y archivados.
+
+Ejemplo NO EJECUTADO. Antes habría que comprobar que los
+números de grupo y los nombres de archivo están disponibles:
+
+```sql
+ALTER DATABASE ADD LOGFILE GROUP 4
+('/opt/oracle/oradata/FREE/redo04.log',
+ '/opt/oracle/oradata/FREE/redo04b.log') SIZE 200M;
+
+ALTER DATABASE ADD LOGFILE GROUP 5
+('/opt/oracle/oradata/FREE/redo05.log',
+ '/opt/oracle/oradata/FREE/redo05b.log') SIZE 200M;
+
+ALTER DATABASE ADD LOGFILE GROUP 6
+('/opt/oracle/oradata/FREE/redo06.log',
+ '/opt/oracle/oradata/FREE/redo06b.log') SIZE 200M;
+
+-- Repetir de forma controlada y comprobar el estado.
+-- Un numero fijo de cambios no garantiza todos los requisitos.
+ALTER SYSTEM SWITCH LOGFILE;
+ALTER SYSTEM CHECKPOINT;
+ALTER SYSTEM ARCHIVE LOG ALL;
+
+SELECT group#, bytes, members, archived, status
+FROM v$log
+ORDER BY group#;
+
+-- Ejecutar cada DROP solo si el grupo correspondiente
+-- esta INACTIVE y ARCHIVED = YES y quedan suficientes grupos.
+ALTER DATABASE DROP LOGFILE GROUP 1;
+ALTER DATABASE DROP LOGFILE GROUP 2;
+ALTER DATABASE DROP LOGFILE GROUP 3;
+```
+
+Los comandos anteriores se incluyen exclusivamente como
+procedimiento de migración. No se ejecutaron.
+La base conserva sus tres grupos originales de 200 MiB
 
 ### Parte L — ARCHIVELOG, FRA y fallo controlado de archivado
 
@@ -1358,6 +1361,66 @@ permite deshacer las transacciones no confirmadas.
 
 La ejecución de M.2 terminó con código 0.
 
+
+### Reto M — Coste de las operaciones y sus ROLLBACK en la FRA
+
+Con la base en ARCHIVELOG se midió SPACE_USED de
+V$RECOVERY_FILE_DEST, se ejecutó de nuevo la prueba
+12-undo-y-redo.sql y se forzó ALTER SYSTEM ARCHIVE LOG CURRENT.
+
+La prueba ejecuta INSERT, UPDATE y DELETE de 10000 pedidos
+y deshace cada operación mediante ROLLBACK.
+
+Aunque la salida utiliza la etiqueta KB, el script divide
+entre 1024, por lo que las cantidades corresponden a KiB.
+
+| Operación | Redo operación (KiB) | Redo ROLLBACK (KiB) | Total (KiB) |
+|---|---:|---:|---:|
+| INSERT | 3947 | 339 | 4286 |
+| UPDATE | 1258 | 751 | 2009 |
+| DELETE | 6620 | 4701 | 11321 |
+| Total | 11825 | 5791 | 17616 |
+
+El redo total medido suma aproximadamente 17,20 MiB.
+Los valores individuales están redondeados por el script.
+
+No se suma de nuevo la columna «del cual describe el undo»:
+es una parte del redo total de cada operación.
+
+El DELETE fue el más caro en esta ejecución:
+427 bloques de undo, frente a 138 del INSERT y 71 del UPDATE.
+Además, deshacer el DELETE produjo 4701 KiB de redo.
+ROLLBACK no elimina el redo ya generado y también genera redo.
+
+#### Crecimiento observado de la FRA
+
+- SPACE_USED inicial: 133227008 bytes.
+- SPACE_USED final: 227620352 bytes.
+- Incremento: 94393344 bytes, equivalentes a 90,02 MiB.
+
+El crecimiento de la FRA fue mayor que el redo medido
+en la sesión. Las magnitudes tienen distinto alcance:
+SPACE_USED contabiliza archivos de recuperación, mientras
+que las medidas del script corresponden al redo de las
+operaciones de la sesión y de sus ROLLBACK.
+
+ARCHIVE LOG CURRENT fuerza el cambio y archivado del log
+actual y puede incluir logs anteriores pendientes.
+El archivado puede incorporar redo generado antes de la
+medida inicial de SPACE_USED, además de actividad concurrente.
+
+No se realizó un archivado de referencia antes de la medida
+inicial ni se capturaron las secuencias archivadas antes y
+después. Por tanto, no se atribuyen los 90,02 MiB exclusivamente
+a esta carga ni se cuantifica la contribución de cada causa.
+
+La conclusión es que deshacer los cambios no evita su coste
+en redo ni el espacio de archivado asociado.
+
+Script: scripts/lab5/12-reto-fra-redo.sql.
+Evidencia: registro *_12-reto-fra-redo.script.log.
+Código de salida: 0.
+
 ### Parte N — LGWR, DBWn y write-ahead logging
 
 La prueba comenzó con un checkpoint y comprobó que no quedaban
@@ -1468,6 +1531,188 @@ la hora del fallo y la de recuperación verificada del servicio.
 Los cuatro scripts terminaron con código 0.
 La copia completa del simulacro C y la recuperación RMAN de D
 demostraron restauraciones reales, no solo creación de backups.
+
+#### Simulacro A — Caída de instancia
+
+La instancia se detuvo mediante SHUTDOWN ABORT y recuperó
+automáticamente al arrancar.
+
+Tras el arranque:
+- La fila 102 conservó EGRESADO, cambio confirmado antes de la caída.
+- La fila 103 mostró ACTIVO: el cambio no confirmado se deshizo.
+
+El alert log registró Beginning crash recovery, lectura de
+1920 KB de redo, 326 bloques de datos que necesitaban recuperación,
+aplicación de 1,13 MB de redo y Completed crash recovery.
+La instancia abrió con la secuencia de log 24.
+
+El script ejecutó después la reparación de la fila 102 a ACTIVO.
+Código de salida: 0.
+
+No se observó pérdida del cambio confirmado de control:
+RPO observado = 0 para la transacción comprobada.
+
+Tiempo de recuperación: no medido con la evidencia revisada.
+La limitación y la mejora de instrumentación se recogen en la tabla
+y retrospectiva conjunta de los simulacros.
+
+### Parte B — Filas por bloque de PEDIDO
+
+Enunciado: calcular con DBMS_ROWID.ROWID_BLOCK_NUMBER cuántas filas
+hay en los bloques de PEDIDO (mínimo, media y máximo), compararlo
+con NUM_ROWS / BLOCKS y explicar por qué los bloques no contienen
+todos el mismo número de filas.
+
+Resultado:
+- Filas totales: 1000000.
+- Bloques con filas: 5220.
+- Mínimo: 2 filas por bloque.
+- Media: 191,57 filas por bloque con filas.
+- Máximo: 200 filas por bloque.
+- Estadísticas: NUM_ROWS = 1000000 y BLOCKS = 5320.
+- BFR estadístico: 187,97.
+- Código de salida: 0.
+
+Interpretación:
+La media directa utiliza solamente los 5220 bloques que contienen
+filas. El cálculo estadístico utiliza 5320 bloques, por lo que su
+denominador es mayor y el resultado es menor. No son exactamente
+la misma medida.
+
+La ocupación no es uniforme: influyen la longitud variable de las
+filas y los bloques que quedan parcialmente llenos durante la carga.
+El resultado observado es compatible con ello, aunque el recuento
+por sí solo no identifica la causa concreta de cada bloque.
+
+Evidencia: lab5/evidencia/script/20261116T095128Z_01-bfr-pedido.script.log
+
+#### Simulacro B — Pérdida de un control file
+
+Se realizó una parada limpia y se eliminó:
+`/opt/oracle/oradata/FREE/control03.ctl`.
+
+El siguiente STARTUP inició la instancia, pero no pudo montar
+la base. Mostró ORA-00205 y V$INSTANCE.STATUS = STARTED:
+la instancia había alcanzado NOMOUNT, no MOUNT.
+
+El alert log identificó el archivo ausente mediante ORA-00202
+y mostró ORA-27037, al no poder obtener su estado en el sistema
+operativo.
+
+Con la base sin montar se repuso control03.ctl copiando otra
+copia sana, conservada tras la misma parada limpia.
+Después se completaron ALTER DATABASE MOUNT y ALTER DATABASE OPEN.
+
+V$CONTROLFILE volvió a mostrar las tres copias.
+La comprobación final indicó:
+docker=healthy y cdb/pdb=READWRITE/READWRITE.
+Código de salida: 0.
+
+No fue necesario restaurar datafiles ni volver a una copia
+histórica de la base. La reparación utilizó la multiplexación.
+
+No se esperaba pérdida de transacciones confirmadas, al conservar
+copias actuales del control file y no retroceder los datos.
+Esta salida no incluye una comprobación específica de filas
+para medir de forma independiente esa ausencia de pérdida.
+
+Tiempo de recuperación: no medido con la evidencia revisada.
+La limitación y la mejora de instrumentación se recogen en la tabla
+y retrospectiva conjunta de los simulacros.
+
+#### Simulacro C — Borrado de tabla y restauración completa
+
+El script creó previamente una copia de 1,3 GB:
+
+`backups/20261116T202648Z_lab5-pre-simulacro`.
+
+Antes del fallo, ACA_MATRICULAS contenía 60000 filas.
+
+En la primera prueba se ejecutó DROP TABLE sin PURGE.
+La tabla y sus índices aparecieron en la papelera, y
+FLASHBACK TABLE ... TO BEFORE DROP recuperó la tabla.
+El recuento posterior volvió a ser de 60000 matrículas.
+
+En la segunda prueba se ejecutó DROP TABLE ... PURGE.
+La consulta posterior devolvió ORA-00942, resultado esperado:
+la tabla ya no existía y no podía recuperarse mediante la papelera.
+
+Se restauró la copia completa lab5-pre-simulacro.
+FREEPDB1 volvió a READ WRITE y ACA_MATRICULAS recuperó
+sus 60000 filas.
+
+Métricas:
+- Tiempo de restauración medido por el script: 129 segundos.
+- Ventana entre la copia y el fallo: 4 segundos.
+- Código de salida: 0.
+
+Los 129 segundos corresponden al tramo de restauración cronometrado,
+no necesariamente a todo el tiempo transcurrido desde el borrado.
+
+La restauración devolvió toda la base al estado de la copia:
+cualquier cambio posterior a ella habría quedado fuera del
+estado recuperado. La ventana de 4 segundos expresa esa exposición
+temporal; no cuantifica transacciones de negocio realmente perdidas.
+
+La prueba demuestra la diferencia entre recuperar una tabla
+con la papelera y restaurar toda la base por el daño de una
+sola tabla. La segunda opción afecta también al estado de las
+demás tablas.
+
+#### Simulacro D — Pérdida y recuperación de un datafile
+
+El camino observado requirió reabrir FREEPDB1:
+tras reparar el archivo, la PDB estaba MOUNTED y el script
+ejecutó su apertura. La comprobación posterior mostró READ WRITE.
+
+Después de RESTORE y RECOVER, la fila 104 apareció en EGRESADO,
+valor confirmado después de la copia RMAN. Por tanto, el estado
+recuperado incorporó redo posterior al backup.
+
+El RPO observado para la transacción de control fue 0:
+el cambio confirmado sobrevivió a la pérdida del datafile.
+
+Métricas del script:
+- Archivo fuera de línea hasta en línea: 18 segundos.
+- Tiempo desde el fallo: 19 segundos.
+- Código de salida: 0.
+
+El script ejecutó después la devolución de la fila 104 a ACTIVO.
+El recuento final de ACA_ESTUDIANTES fue de 20000 filas.
+
+A diferencia del simulacro C, que restauró toda la base en
+129 segundos y volvió al estado de la copia, este procedimiento
+recuperó el archivo afectado e incorporó los cambios posteriores
+mediante redo.
+
+La comparación temporal tiene un límite: los 129 segundos de C
+corresponden al tramo de restauración, mientras que D ofrece
+tanto el tramo de reparación (18 segundos) como el tiempo
+desde el fallo (19 segundos).
+El archivo afectado fue el datafile 16:
+`/opt/oracle/oradata/FREE/FREEPDB1/academia01.dbf`.
+
+El backup RMAN terminó antes del fallo, con etiqueta
+LAB5_SIMULACRO_D, y se guardó en la FRA. También se generó
+un autobackup.
+
+El diagnóstico mostró:
+- ORA-01116: no se pudo abrir el archivo de base de datos.
+- ORA-01110: identificó el número 16 y su ruta.
+- ORA-27041: fallo al abrir el archivo en el sistema operativo.
+- Linux Error 2: el archivo no existía.
+
+Antes de reparar, FREEPDB1 ya estaba MOUNTED.
+El script indicó el camino de cierre por fallo de medios
+asociado a ORA-63999; el fragmento de alert log mostrado
+no incluye directamente ese código.
+
+RMAN restauró el datafile 16 en su ruta y completó
+media recovery. Después se puso el archivo en línea y
+se abrió de nuevo FREEPDB1.
+
+La consulta final mostró READ WRITE y la fila 104 en EGRESADO,
+confirmando la recuperación del cambio posterior al backup.
 
 ### Parte P — Comprobación de salud y verificación final
 
@@ -1649,138 +1894,28 @@ Los tiempos de recuperación de los simulacros A y B no se
 midieron con la evidencia revisada. Esta limitación se recoge
 en la tabla y retrospectiva conjunta.
 
-Siguen pendientes:
-- Revisión y realización de los retos que requieren medidas adicionales.
+Estado de los retos adicionales:
+- B, C y D: documentados en sus apartados.
+- F: revisión de código y medidas completadas.
+- G: experimento V006 completado; propuesta no incorporada.
+- I: MTTR bajo carga medido y documentado.
+- M: crecimiento de FRA frente a redo medido y documentado.
+- P: consulta de alerta FRA documentada.
+- K: historial y dimensionamiento documentados; se conservan
+  los grupos de 200 MiB, con limitaciones de atribución explícitas.
+- H: no consta realizado el diagnóstico independiente del
+  escenario preparado por el profesor.
+
+Limitaciones conservadas:
+- No se dispone de un tiempo de recuperación medido para
+  los simulacros A y B en la evidencia revisada.
+- Las limitaciones específicas de cada experimento se
+  explican en su apartado.
+
+Pendiente para cerrar la entrega:
+- Resolver o declarar expresamente el reto H.
 - Control de seguridad de archivos e historial.
-- Revisión final de la documentación.
+- Revisión final de documentación y evidencias.
+- Verificación técnica final tras los experimentos adicionales.
 - Push, Pull Request, revisión y merge.
 - Etiqueta lab5-final y copia final de la base.
-
-El resultado TODO OK valida las comprobaciones del script,
-pero no sustituye el cierre documental ni el flujo de entrega.
-
-### Reto I — MTTR y carga de escritura
-
-Se consultó V$INSTANCE_RECOVERY desde CDB$ROOT en tres momentos:
-tras un checkpoint inicial, después de una carga de escritura con
-COMMIT y tras un checkpoint final.
-
-La carga consistió en actualizar TELEFONO con su propio valor
-en TIENDASUR.CLIENTE, limitando el UPDATE a 20000 filas.
-La salida conservada no muestra SQL%ROWCOUNT, por lo que no se
-afirma un recuento exacto de filas actualizadas.
-
-| Momento | ESTIMATED_MTTR (s) | ACTUAL_REDO_BLKS | RECOVERY_ESTIMATED_IOS |
-|---|---:|---:|---:|
-| A. Tras checkpoint inicial | 11 | 0 | 7 |
-| B. Tras UPDATE y COMMIT | 11 | 0 | 413 |
-| C. Tras checkpoint final | 11 | 0 | 3 |
-
-RECOVERY_ESTIMATED_IOS representa el número de búferes sucios
-en caché. Tras la carga pasó de 7 a 413 y, tras el checkpoint
-final, descendió a 3.
-
-ESTIMATED_MTTR permaneció en 11 segundos en las tres muestras.
-Por tanto, la prueba muestra una variación de búferes sucios,
-pero no un aumento observable del MTTR estimado.
-
-ACTUAL_REDO_BLKS permaneció en cero. Este indicador representa
-redo requerido para recuperación en el instante observado,
-no el redo total generado por la carga.
-
-No se ejecutó un checkpoint manual entre A y B, pero tampoco
-se deshabilitó la actividad automática de escritura/checkpoint.
-Las muestras corresponden a la instancia y pueden incluir
-actividad de fondo, no exclusivamente la sesión de prueba.
-
-No se provocó un fallo: los 11 segundos son una estimación,
-no una duración de recuperación medida.
-
-Script: scripts/lab5/08-reto-mttr.sql.
-Evidencia: registro *_08-reto-mttr.script.log.
-Código de salida: 0.
-
-### Reto M — Coste de las operaciones y sus ROLLBACK en la FRA
-
-Con la base en ARCHIVELOG se midió SPACE_USED de
-V$RECOVERY_FILE_DEST, se ejecutó de nuevo la prueba
-12-undo-y-redo.sql y se forzó ALTER SYSTEM ARCHIVE LOG CURRENT.
-
-La prueba ejecuta INSERT, UPDATE y DELETE de 10000 pedidos
-y deshace cada operación mediante ROLLBACK.
-
-Aunque la salida utiliza la etiqueta KB, el script divide
-entre 1024, por lo que las cantidades corresponden a KiB.
-
-| Operación | Redo operación (KiB) | Redo ROLLBACK (KiB) | Total (KiB) |
-|---|---:|---:|---:|
-| INSERT | 3947 | 339 | 4286 |
-| UPDATE | 1258 | 751 | 2009 |
-| DELETE | 6620 | 4701 | 11321 |
-| Total | 11825 | 5791 | 17616 |
-
-El redo total medido suma aproximadamente 17,20 MiB.
-Los valores individuales están redondeados por el script.
-
-No se suma de nuevo la columna «del cual describe el undo»:
-es una parte del redo total de cada operación.
-
-El DELETE fue el más caro en esta ejecución:
-427 bloques de undo, frente a 138 del INSERT y 71 del UPDATE.
-Además, deshacer el DELETE produjo 4701 KiB de redo.
-ROLLBACK no elimina el redo ya generado y también genera redo.
-
-#### Crecimiento observado de la FRA
-
-- SPACE_USED inicial: 133227008 bytes.
-- SPACE_USED final: 227620352 bytes.
-- Incremento: 94393344 bytes, equivalentes a 90,02 MiB.
-
-El crecimiento de la FRA fue mayor que el redo medido
-en la sesión. Las magnitudes tienen distinto alcance:
-SPACE_USED contabiliza archivos de recuperación, mientras
-que las medidas del script corresponden al redo de las
-operaciones de la sesión y de sus ROLLBACK.
-
-ARCHIVE LOG CURRENT fuerza el cambio y archivado del log
-actual y puede incluir logs anteriores pendientes.
-El archivado puede incorporar redo generado antes de la
-medida inicial de SPACE_USED, además de actividad concurrente.
-
-No se realizó un archivado de referencia antes de la medida
-inicial ni se capturaron las secuencias archivadas antes y
-después. Por tanto, no se atribuyen los 90,02 MiB exclusivamente
-a esta carga ni se cuantifica la contribución de cada causa.
-
-La conclusión es que deshacer los cambios no evita su coste
-en redo ni el espacio de archivado asociado.
-
-Script: scripts/lab5/12-reto-fra-redo.sql.
-Evidencia: registro *_12-reto-fra-redo.script.log.
-Código de salida: 0.
-
-### Reto G — Propuesta propia V006
-
-Experimento realizado en la rama experiment/7-v006-q11-covering,
-commit 2e86303.
-
-Se evaluó un índice sobre PEDIDO(FECHA_PEDIDO, IMPORTE) para Q11.
-Las lecturas lógicas descendieron de 5046 a 3340, pero el índice
-añadió 27 MiB y aumentó el coste de INSERT, UPDATE de IMPORTE
-y DELETE.
-
-Decisión: no incorporar V006 por ahora, al no haberse justificado
-la frecuencia de Q11 ni el beneficio global sobre la carga.
-
-La migración propuesta permanece exclusivamente en la rama
-experimental. No se fusionó ni se incorporó a las migraciones
-de esta rama del laboratorio.
-
-El índice experimental se eliminó de la base; PEDIDO quedó
-con los cinco índices de V005, todos VISIBLE y VALID.
-
-Informe con las cinco preguntas y descripción propuesta del PR:
-docs/bitacora/lab5/reto-g-v006.md.
-
-Los scripts de prueba y las cuatro evidencias se conservan
-también en esta rama para facilitar la revisión.
