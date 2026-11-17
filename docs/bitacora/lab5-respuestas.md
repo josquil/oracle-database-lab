@@ -1758,3 +1758,29 @@ en redo ni el espacio de archivado asociado.
 Script: scripts/lab5/12-reto-fra-redo.sql.
 Evidencia: registro *_12-reto-fra-redo.script.log.
 Código de salida: 0.
+
+### Reto G — Propuesta propia V006
+
+Experimento realizado en la rama experiment/7-v006-q11-covering,
+commit 2e86303.
+
+Se evaluó un índice sobre PEDIDO(FECHA_PEDIDO, IMPORTE) para Q11.
+Las lecturas lógicas descendieron de 5046 a 3340, pero el índice
+añadió 27 MiB y aumentó el coste de INSERT, UPDATE de IMPORTE
+y DELETE.
+
+Decisión: no incorporar V006 por ahora, al no haberse justificado
+la frecuencia de Q11 ni el beneficio global sobre la carga.
+
+La migración propuesta permanece exclusivamente en la rama
+experimental. No se fusionó ni se incorporó a las migraciones
+de esta rama del laboratorio.
+
+El índice experimental se eliminó de la base; PEDIDO quedó
+con los cinco índices de V005, todos VISIBLE y VALID.
+
+Informe con las cinco preguntas y descripción propuesta del PR:
+docs/bitacora/lab5/reto-g-v006.md.
+
+Los scripts de prueba y las cuatro evidencias se conservan
+también en esta rama para facilitar la revisión.
