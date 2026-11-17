@@ -888,6 +888,23 @@ El gráfico final corresponde al estado posterior a REBUILD ONLINE:
 La ejecución terminó con código 0 y confirmó la eliminación
 del esquema de pruebas LAB5_PRUEBAS.
 
+#### Reto H — Diagnóstico independiente
+
+La práctica guiada de la Parte H está realizada y documentada,
+con gráficos, estadísticas y medidas antes y después de
+los remedios.
+
+El reto adicional exige diagnosticar un índice preparado
+por el profesor sin conocer cómo fue degradado.
+
+Tras revisar el listado del kit y su README, no se ha
+identificado un escenario adicional ni el esquema e índice
+que deben diagnosticarse.
+
+Estado: pendiente de identificar con el profesor el objeto
+del reto. No se presenta la práctica guiada como sustitución
+del diagnóstico independiente.
+
 ### Parte I — SCN y checkpoints
 
 #### Avance del SCN
