@@ -1295,6 +1295,72 @@ y se gestionarían los archivos con RMAN, sin borrarlos directamente
 con rm.
 
 La configuración final quedó en ARCHIVELOG, con FRA de 4 GB.
+
+### Retrospectiva documental del caso L.3
+
+Este apartado analiza el incidente descrito en el enunciado.
+No corresponde a una reproducción independiente ni a medidas
+obtenidas en mi ejecución.
+
+#### Resumen e impacto
+
+Las cargas repetidas de TiendaSur con ARCHIVELOG activo
+generaron redo archivado hasta agotar la capacidad disponible
+de la FRA.
+
+Al no poder archivar los grupos pendientes, estos no podían
+reutilizarse y las operaciones que necesitaban generar redo
+quedaron esperando por log file switch (archiving needed).
+
+#### Detección
+
+El caso describe una carga que no terminaba y la identificación
+de la espera de archivado en V$SESSION. Los avisos sobre
+ocupación de la FRA permitían detectar la presión de espacio
+antes del bloqueo.
+
+#### Causa
+
+La capacidad y la gestión del espacio de recuperación no
+se ajustaron a la repetición de cargas masivas.
+
+Deshacer las operaciones no evita el redo ya generado ni
+el redo adicional de los ROLLBACK.
+
+#### Mitigación descrita y límites
+
+El enunciado describe la eliminación de archivados con RMAN
+como medida aceptable en ese entorno de laboratorio.
+
+No se adopta como política general de producción: antes de
+eliminar archivados deben comprobarse las necesidades de
+recuperación, las copias disponibles y la política de borrado.
+
+#### Acciones de mejora
+
+- Revisar ocupación de FRA y espacio físico antes de repetir
+  cargas masivas.
+- Vigilar V$RECOVERY_AREA_USAGE para identificar los tipos
+  de archivo responsables del consumo.
+- Implantar una alerta de ocupación; la consulta propia
+  del reto P utiliza un umbral del 85 %.
+- Dimensionar el espacio y definir una política de copias
+  y eliminación gestionada con RMAN.
+- Registrar los instantes de detección, mitigación y
+  recuperación funcional en futuras pruebas.
+
+#### Diferencia respecto a mi experimento L.2
+
+En L.3 se acumularon archivos por cargas repetidas.
+En mi L.2 se redujo deliberadamente el límite de la FRA
+por debajo del espacio ya utilizado.
+
+Ambos escenarios impiden continuar el archivado, pero
+no tienen el mismo desencadenante.
+
+No se asignan tiempos ni cifras propias al caso L.3
+porque no se midió de forma independiente.
+
 ### Parte M — Undo, lectura consistente y coste de redo
 
 #### M.1. Dos sesiones sobre la misma fila
@@ -1511,15 +1577,21 @@ La ejecución terminó con código 0.
 
 | Simulacro | Recuperación comprobada | Tiempo observado | Pérdida de datos |
 |---|---|---|---|
-| A: caída de instancia | Arranque y recuperación automática con redo y undo | No medido con la evidencia revisada | El cambio confirmado de la fila 102 sobrevivió; el no confirmado de la 103 se deshizo |
-| B: control file perdido | Reposición desde una copia sana y MOUNT/OPEN | No medido con la evidencia revisada | No se retrocedieron los datos; no hubo una comprobación específica de transacciones |
+| A: caída de instancia | Arranque y recuperación automática con redo y undo | Ejecución original sin cronometraje. Repetición: 32,657 s
+desde el anuncio de arranque hasta comprobar salud;
+33,414 s hasta recibir los resultados funcionales.|
+| B: control file perdido | Reposición desde una copia sana y MOUNT/OPEN | Ejecución original sin cronometraje. Repetición: 18,937 s
+desde el anuncio del intento de arranque hasta comprobar salud;
+14,173 s desde el anuncio de reparación.|
 | C: tabla borrada con PURGE | Restauración completa de la copia previa | 129 s en el tramo de restauración | Ventana de exposición de 4 s desde la copia; no se cuantificaron transacciones de negocio perdidas |
 | D: datafile perdido | RESTORE y RECOVER del archivo 16; reapertura de FREEPDB1 | 18 s de reparación y 19 s desde el fallo | RPO observado 0 para el cambio de control de la fila 104 |
 
-Los tiempos de A y B quedan como una limitación de la medición:
-no los deduzco de los nombres de los archivos ni de la duración
-de otros simulacros. La mejora es registrar explícitamente
-la hora del fallo y la de recuperación verificada del servicio.
+Las ejecuciones originales de A y B no tenían cronometraje.
+Las repeticiones posteriores aportan intervalos externos,
+detallados en sus apartados y en la sección 4.
+
+Se conserva la limitación de no medir exactamente desde
+el instante del fallo hasta la recuperación funcional.
 
 #### Hallazgos y mejoras propuestas
 
@@ -1573,35 +1645,37 @@ Tiempo de recuperación: no medido con la evidencia revisada.
 La limitación y la mejora de instrumentación se recogen en la tabla
 y retrospectiva conjunta de los simulacros.
 
-### Parte B — Filas por bloque de PEDIDO
+#### Repetición instrumentada externamente del simulacro A
 
-Enunciado: calcular con DBMS_ROWID.ROWID_BLOCK_NUMBER cuántas filas
-hay en los bloques de PEDIDO (mínimo, media y máximo), compararlo
-con NUM_ROWS / BLOCKS y explicar por qué los bloques no contienen
-todos el mismo número de filas.
+Se repitió el simulacro sin modificar el script original.
+La captura externa añadió marcas de recepción de salida
+y registró el inicio y final de la ejecución.
 
-Resultado:
-- Filas totales: 1000000.
-- Bloques con filas: 5220.
-- Mínimo: 2 filas por bloque.
-- Media: 191,57 filas por bloque con filas.
-- Máximo: 200 filas por bloque.
-- Estadísticas: NUM_ROWS = 1000000 y BLOCKS = 5320.
-- BFR estadístico: 187,97.
-- Código de salida: 0.
+Evidencia:
+`lab5/evidencia/script/20261117T211959Z_14a-repeticion-cronometrada.script.log`.
 
-Interpretación:
-La media directa utiliza solamente los 5220 bloques que contienen
-filas. El cálculo estadístico utiliza 5320 bloques, por lo que su
-denominador es mayor y el resultado es menor. No son exactamente
-la misma medida.
+Resultados:
 
-La ocupación no es uniforme: influyen la longitud variable de las
-filas y los bloques que quedan parcialmente llenos durante la carga.
-El resultado observado es compatible con ello, aunque el recuento
-por sí solo no identifica la causa concreta de cada bloque.
+- Duración completa del script: 35,852 s.
+- Intervalo observado desde el anuncio de arranque hasta
+  comprobar docker=healthy y CDB/PDB en READ WRITE: 32,657 s.
+- Intervalo observado desde el anuncio de arranque hasta
+  recibir los resultados de las dos filas de control: 33,414 s.
+- Fila 102: EGRESADO; sobrevivió el cambio confirmado.
+- Fila 103: ACTIVO; el cambio no confirmado quedó deshecho.
+- Pérdida observada del cambio confirmado de control: ninguna.
+- Código de salida del script y de la captura: 0.
 
-Evidencia: lab5/evidencia/script/20261116T095128Z_01-bfr-pedido.script.log
+La duración completa incluye preparación, caída, arranque,
+comprobaciones, limpieza y lectura del alert log.
+
+Los otros intervalos utilizan marcas externas de recepción
+de salida y comienzan después de completar SHUTDOWN ABORT.
+No equivalen a un RTO exacto desde el instante del fallo
+ni al tiempo aislado de crash recovery de Oracle.
+
+La ejecución original permanece sin cronometraje.
+Estas medidas corresponden exclusivamente a la repetición.
 
 #### Simulacro B — Pérdida de un control file
 
@@ -1633,9 +1707,41 @@ copias actuales del control file y no retroceder los datos.
 Esta salida no incluye una comprobación específica de filas
 para medir de forma independiente esa ausencia de pérdida.
 
-Tiempo de recuperación: no medido con la evidencia revisada.
-La limitación y la mejora de instrumentación se recogen en la tabla
-y retrospectiva conjunta de los simulacros.
+#### Repetición instrumentada externamente del simulacro B
+
+Se repitió el simulacro sin modificar el script original.
+
+Evidencia:
+`lab5/evidencia/script/20261117T212627Z_14b-repeticion-cronometrada.script.log`.
+
+Secuencia observada:
+
+1. Se identificó control01.ctl como copia sana.
+2. Se realizó una parada limpia y se eliminó control03.ctl.
+3. El intento de arranque mostró ORA-00205 y estado STARTED.
+4. El diagnóstico identificó control03.ctl mediante ORA-00202
+   y mostró ORA-27037.
+5. Se repuso la copia y se completaron MOUNT y OPEN.
+6. La consulta mostró las tres copias del control file.
+7. La comprobación final mostró docker=healthy y
+   CDB/PDB en READWRITE/READWRITE.
+
+Medidas:
+
+- Duración completa del script: 24,006 s.
+- Desde el anuncio del intento de arranque hasta comprobar
+  salud: 18,937 s.
+- Desde el anuncio de reparación hasta comprobar salud:
+  14,173 s.
+- Código de salida del script y de la captura: 0.
+
+Las medidas parciales utilizan marcas de recepción de salida.
+Comienzan después del borrado y no constituyen un RTO exacto
+desde el fallo.
+
+No se restauraron datafiles ni se retrocedió a una copia
+histórica. No se realizó una comprobación específica de
+transacciones para cuantificar independientemente la pérdida.
 
 #### Simulacro C — Borrado de tabla y restauración completa
 
@@ -1835,20 +1941,50 @@ y la Parte del laboratorio que lo demuestra.
 | S7 | A y C | COALESCE resuelve el recorrido de hojas sin entradas vivas; SHRINK SPACE permite además recuperar espacio del segmento. Parte H: 226 a 2 lecturas tras COALESCE y 4 a 1,69 MB tras el SHRINK posterior. Operar en línea no significa ausencia absoluta de esperas o bloqueos breves. |
 | S8 | B | REVERSE reparte claves secuenciales entre hojas, pero impide el acceso por rango ordenado de la clave original. Parte H: 4 lecturas con el índice normal y 878 con recorrido completo en la tabla con REVERSE. |
 | S9 | C | Un UPDATE de una columna que no participa en índices no tiene que mantener entradas de todos ellos por el mero hecho de existir. Parte G: el coste depende de las columnas indexadas afectadas. |
-| S10 | B | El factor de ramificación determina cuántos hijos caben en cada
+| S10 | B | El factor de ramificación determina cuántos hijos caben en los bloques de rama y, junto con el número de hojas, condiciona la altura. Parte C: IX_PED_CLIENTE tuvo altura 3, 2216 hojas y un factor medio aproximado de 370 hijos por rama. |
+| S11 | A y C | En una IOT, las filas se almacenan en la estructura del índice de la clave primaria; una búsqueda por esa clave evita acceder a un segmento heap separado. Referencia: Parte D, prueba de IOT. |
+| S12 | B | Se compara el checkpoint registrado para el datafile en el control file con el de su cabecera. Parte I: comparación entre V$DATAFILE y V$DATAFILE_HEADER. La igualdad de esos valores no demuestra por sí sola que nunca haga falta recuperación de instancia. |
+| S13 | C | CKPT registra la información de checkpoint en el control file y en las cabeceras de los datafiles; DBWn escribe los bloques de datos. Partes I y N. |
+| S14 | B y E | En NOMOUNT ya existe la instancia y se pueden consultar V$INSTANCE y V$PARAMETER; todavía no se han abierto los control files para montar la base. Referencia: Lab 4, arranque por etapas; Parte O, simulacro B, para el estado STARTED tras fallar MOUNT. |
+| S15 | B | La secuencia es SHUTDOWN IMMEDIATE, STARTUP MOUNT, ALTER DATABASE ARCHIVELOG y ALTER DATABASE OPEN. Referencia: Parte L. En mi ejecución la base ya estaba en ARCHIVELOG, por lo que no presento ese registro como una ejecución de la transición completa. |
+| S16 | B | Para el grupo INACTIVE y ya archivado del supuesto, ALTER DATABASE CLEAR LOGFILE GROUP n permite reinicializar el grupo dañado. Referencia conceptual: gestión de redo, Parte K. No se presenta como un fallo ejecutado en mis simulacros. |
+| S17 | A y C | El undo permite reconstruir versiones anteriores para lectura consistente y consultas flashback AS OF, además de deshacer transacciones. Parte M: la sesión B leyó ACTIVO mientras A mantenía un cambio sin confirmar y se consultó una versión anterior con AS OF TIMESTAMP. |
+| S18 | B | Los cambios en bloques de undo también necesitan protección: el redo permite reconstruirlos durante la recuperación para poder deshacer las transacciones no confirmadas. Parte M: se midió redo que describe cambios en undo. |
+| S19 | A | Con la confirmación síncrona considerada en el laboratorio, el redo de la transacción está persistido en los redo logs online; no se exige que los bloques de datos estén ya escritos ni que el redo esté archivado. Parte N: tras UPDATE y COMMIT quedaron 231 buffers sucios de la tabla. |
+| S20 | A | Reducir FAST_START_MTTR_TARGET persigue una recuperación de instancia más rápida mediante una actividad de checkpoint incremental más intensa. Referencia: Parte I. Mi reto midió estimaciones bajo carga, pero no ejecutó el cambio de 300 a 30 segundos ni midió una caída con esos valores. |
+| S21 | B | La espera indica que no puede reutilizarse un grupo porque necesita archivarse; una causa posible es que ARCn no pueda archivar al estar llena la FRA. Parte L: fallo de archivado por límite insuficiente. No se observó directamente esa espera en todas las sesiones de mi prueba. |
+| S22 | B | En el supuesto del enunciado se aísla el datafile de aplicación con OFFLINE para mantener el resto del servicio y proceder a RESTORE y RECOVER. Parte O, simulacro D. En mi ejecución FREEPDB1 estaba MOUNTED y hubo que reabrirla tras recuperar el archivo. |
+| S23 | B | La pérdida de un datafile de SYSTEM exige recuperar con la base sin abrir: detener si procede, STARTUP MOUNT, RESTORE DATAFILE, RECOVER DATAFILE y ALTER DATABASE OPEN. Referencia conceptual: escenarios de recuperación. No se provocó una pérdida de SYSTEM en mis simulacros. |
+| S24 | B | Entre las opciones propuestas y en el escenario del laboratorio, se restaura una copia consistente y se pierden los cambios posteriores al punto recuperado al no disponer del archivado necesario para avanzar. Referencia: comparación de estrategias de recuperación de la Parte O; no se ejecutó una pérdida de datafile en NOARCHIVELOG. |
+| S25 | B y D | Aumentar UNDO_RETENTION y dimensionar el undo ayuda a conservar las versiones requeridas. RETENTION GUARANTEE evita reutilizar undo no expirado, pero puede hacer fallar escrituras si se agota el espacio. Referencia: Parte M. No se afirma haber provocado ORA-01555 ni activado la garantía en esta práctica. |
+| S26 | A | V$RECOVERY_AREA_USAGE muestra el uso de la FRA desglosado por tipo de archivo. Referencia: consultas de la Parte L y comprobación de recuperabilidad del runbook de la Parte P. |
+
+La tabla es una resolución revisada del simulacro, no un
+intento autónomo cronometrado. Las referencias identifican
+la parte relacionada; cuando el supuesto no se ejecutó,
+se indica expresamente y no se atribuye una evidencia práctica.
 
 ## 4. Simulacros — RTO, RPO y retrospectivas
 
-| Simulacro | Tiempo de recuperación observado | RPO / pérdida observada | Evidencia |
+| Simulacro | Recuperación comprobada | Tiempo observado | Pérdida de datos |
 |---|---|---|---|
-| A — Caída de instancia | No medido con la evidencia revisada | 0 para el cambio confirmado de la fila 102; la modificación no confirmada de 103 se deshizo | lab5/evidencia/script/20261116T201755Z_14a-caida-instancia.script.log |
-| B — Control file perdido | No medido con la evidencia revisada | No se retrocedieron los datos; sin comprobación específica de transacciones | lab5/evidencia/script/20261116T202243Z_14b-perdida-controlfile.script.log |
-| C — Tabla borrada | 129 s de restauración | Ventana de exposición de 4 s desde la copia; pérdida de transacciones de negocio no cuantificada | lab5/evidencia/script/20261116T202642Z_14c-simulacro-restauracion.script.log |
-| D — Datafile perdido | 18 s de reparación; 19 s desde el fallo | 0 para el cambio de control posterior al backup | lab5/evidencia/script/20261116T205728Z_14d-perdida-datafile.script.log |
+| A: caída de instancia | Arranque y recuperación automática con redo y undo | Ejecución original sin cronometraje. Repetición: 32,657 s desde el anuncio de arranque hasta comprobar salud; 33,414 s hasta recibir los resultados funcionales | El cambio confirmado de la fila 102 sobrevivió; el no confirmado de la 103 se deshizo |
+| B: control file perdido | Reposición desde una copia sana y MOUNT/OPEN | Ejecución original sin cronometraje. Repetición: 18,937 s desde el anuncio del intento de arranque hasta comprobar salud; 14,173 s desde el anuncio de reparación | No se retrocedieron los datos; no hubo una comprobación específica de transacciones |
+| C: tabla borrada con PURGE | Restauración completa de la copia previa | 129 s en el tramo de restauración | Ventana de exposición de 4 s desde la copia; no se cuantificaron transacciones de negocio perdidas |
+| D: datafile perdido | RESTORE y RECOVER del archivo 16; reapertura de FREEPDB1 | 18 s de reparación y 19 s desde el fallo | RPO observado 0 para el cambio de control de la fila 104 |
 
-Los tiempos de A y B no se han inferido de los nombres de los logs.
-La falta de cronometraje explícito es una limitación pendiente
-respecto al requisito de medir los cuatro simulacros.
+Las ejecuciones originales de A y B no tenían cronometraje.
+Se realizaron repeticiones posteriores con captura externa y marcas de recepción de salida.
+En A se midió desde el anuncio de arranque, después del ABORT.
+En B se midió desde el anuncio del intento de arranque, después
+del borrado del control file, y desde el anuncio de reparación.
+
+Los intervalos no incluyen todo el tiempo desde el instante
+del fallo ni aíslan la recuperación interna de Oracle.
+Por tanto, no se presentan como RTO exactos de extremo a extremo.
+
+Los registros originales se conservan y las nuevas medidas
+se atribuyen exclusivamente a las repeticiones.
 
 ## 5. Retrospectiva — FRA llena
 
@@ -1899,35 +2035,33 @@ No he realizado una reproducción independiente de L.3.
 
 ## 6. Verificación y cierre
 
-La ejecución técnica de P.2 terminó con TODO OK y código 0.
-Evidencia:
-`lab5/evidencia/script/20261116T211802Z_16-verificacion-final.script.log`.
+La verificación técnica inicial de P.2 terminó con TODO OK
+y código de salida 0.
 
-Las preguntas de comprobación 1–22 y la tabla S1–S26 están
-respondidas. La tabla del simulacro es una resolución revisada,
-no un intento autónomo cronometrado.
+Tras los experimentos adicionales se repitió la verificación
+final, también con TODO OK y código de salida 0.
 
-Los tiempos de recuperación de los simulacros A y B no se
-midieron con la evidencia revisada. Esta limitación se recoge
-en la tabla y retrospectiva conjunta.
+Evidencia de cierre:
+`lab5/evidencia/script/20261117T112416Z_16-verificacion-final-cierre.script.log`.
 
-Estado de los retos adicionales:
-- B, C y D: documentados en sus apartados.
-- F: revisión de código y medidas completadas.
-- G: experimento V006 completado; propuesta no incorporada.
-- I: MTTR bajo carga medido y documentado.
-- M: crecimiento de FRA frente a redo medido y documentado.
-- P: consulta de alerta FRA documentada.
-- K: historial y dimensionamiento documentados; se conservan
-  los grupos de 200 MiB, con limitaciones de atribución explícitas.
-- H: no consta realizado el diagnóstico independiente del
-  escenario preparado por el profesor.
+El resultado valida las comprobaciones incluidas en el
+verificador. No sustituye la revisión documental, la resolución
+de los retos ni una auditoría exhaustiva de seguridad.
 
-Limitaciones conservadas:
-- No se dispone de un tiempo de recuperación medido para
-  los simulacros A y B en la evidencia revisada.
-- Las limitaciones específicas de cada experimento se
-  explican en su apartado.
+Las preguntas de comprobación 1–22 están respondidas.
+La tabla S1–S26 recoge una resolución revisada del simulacro,
+con justificación y referencia a las partes relacionadas.
+
+Se obtuvieron intervalos externos de recuperación y disponibilidad
+en repeticiones de A y B.
+
+Las ejecuciones iniciales permanecen sin cronometraje.
+Las nuevas medidas y sus límites se describen en la Parte O
+y en la tabla de la sección 4.
+
+La práctica guiada de H está completada. El diagnóstico
+independiente sigue pendiente de que el profesor identifique
+el escenario, el esquema y el índice que deben diagnosticarse.
 ### Control de seguridad previo al push
 
 Se buscaron los valores actuales de ORACLE_PWD y OPS_RO_PWD
@@ -1956,10 +2090,19 @@ Alcance: la búsqueda de contraseñas comprobó los dos valores
 actuales; no constituye una auditoría exhaustiva de otros
 secretos ni de contraseñas anteriores.
 
-Pendiente para cerrar la entrega:
-- Resolver o declarar expresamente el reto H.
-- Control de seguridad de archivos e historial.
-- Revisión final de documentación y evidencias.
-- Verificación técnica final tras los experimentos adicionales.
-- Push, Pull Request, revisión y merge.
-- Etiqueta lab5-final y copia final de la base.
+### Pendientes para el cierre definitivo
+
+- Confirmar con el profesor el escenario y el objeto del reto H.
+- Mantener declarados los límites de las medidas externas
+  de los simulacros A y B en la revisión de la entrega.
+- Completar la revisión final de documentación y evidencias.
+- Publicar la rama y preparar el Pull Request en borrador.
+- Resolver los pendientes de revisión antes del merge.
+- Crear la etiqueta lab5-final y la copia final de la base
+  cuando corresponda cerrar definitivamente el laboratorio.
+
+Comprobaciones ya realizadas:
+- Control de seguridad específico de archivos e historial,
+  con el alcance documentado.
+- Verificación técnica final posterior a los experimentos:
+  TODO OK y código de salida 0.
