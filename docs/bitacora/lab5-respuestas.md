@@ -901,9 +901,15 @@ Tras revisar el listado del kit y su README, no se ha
 identificado un escenario adicional ni el esquema e índice
 que deben diagnosticarse.
 
-Estado: pendiente de identificar con el profesor el objeto
-del reto. No se presenta la práctica guiada como sustitución
-del diagnóstico independiente.
+Se solicitó aclaración al profesor y, a fecha de preparación
+del cierre, 23 de noviembre de 2026, no se ha recibido respuesta.
+
+Se entrega el trabajo realizado dejando el diagnóstico
+independiente como no realizado por falta de identificación
+del objeto.
+
+No se presenta la práctica guiada como sustitución del reto
+ni se afirma que el profesor haya autorizado su omisión.
 
 ### Parte I — SCN y checkpoints
 
@@ -1577,12 +1583,8 @@ La ejecución terminó con código 0.
 
 | Simulacro | Recuperación comprobada | Tiempo observado | Pérdida de datos |
 |---|---|---|---|
-| A: caída de instancia | Arranque y recuperación automática con redo y undo | Ejecución original sin cronometraje. Repetición: 32,657 s
-desde el anuncio de arranque hasta comprobar salud;
-33,414 s hasta recibir los resultados funcionales.|
-| B: control file perdido | Reposición desde una copia sana y MOUNT/OPEN | Ejecución original sin cronometraje. Repetición: 18,937 s
-desde el anuncio del intento de arranque hasta comprobar salud;
-14,173 s desde el anuncio de reparación.|
+| A: caída de instancia | Arranque y recuperación automática con redo y undo | Ejecución original sin cronometraje. Repetición: 32,657 s desde el anuncio de arranque hasta comprobar salud; 33,414 s hasta recibir los resultados funcionales | El cambio confirmado de la fila 102 sobrevivió; el no confirmado de la 103 se deshizo |
+| B: control file perdido | Reposición desde una copia sana y MOUNT/OPEN | Ejecución original sin cronometraje. Repetición: 18,937 s desde el anuncio del intento de arranque hasta comprobar salud; 14,173 s desde el anuncio de reparación | No se retrocedieron los datos; no hubo una comprobación específica de transacciones |
 | C: tabla borrada con PURGE | Restauración completa de la copia previa | 129 s en el tramo de restauración | Ventana de exposición de 4 s desde la copia; no se cuantificaron transacciones de negocio perdidas |
 | D: datafile perdido | RESTORE y RECOVER del archivo 16; reapertura de FREEPDB1 | 18 s de reparación y 19 s desde el fallo | RPO observado 0 para el cambio de control de la fila 104 |
 
@@ -2044,6 +2046,15 @@ final, también con TODO OK y código de salida 0.
 Evidencia de cierre:
 `lab5/evidencia/script/20261117T112416Z_16-verificacion-final-cierre.script.log`.
 
+El 23 de noviembre de 2026 se ejecutó de nuevo la verificación
+técnica previa al merge, con RESULTADO: TODO OK.
+
+Código del verificador: 0.
+Código de la captura mediante tee: 0.
+
+Evidencia:
+`lab5/evidencia/script/20261123T195517Z_16-verificacion-pre-merge.script.log`.
+
 El resultado valida las comprobaciones incluidas en el
 verificador. No sustituye la revisión documental, la resolución
 de los retos ni una auditoría exhaustiva de seguridad.
@@ -2059,9 +2070,13 @@ Las ejecuciones iniciales permanecen sin cronometraje.
 Las nuevas medidas y sus límites se describen en la Parte O
 y en la tabla de la sección 4.
 
-La práctica guiada de H está completada. El diagnóstico
-independiente sigue pendiente de que el profesor identifique
-el escenario, el esquema y el índice que deben diagnosticarse.
+La práctica guiada de H está completada. Se prepara la entrega
+con el diagnóstico independiente no realizado por falta de
+identificación del escenario, esquema e índice del profesor.
+
+La ausencia de respuesta a la consulta se deja documentada.
+No se considera una autorización para omitir el requisito.
+
 ### Control de seguridad previo al push
 
 Se buscaron los valores actuales de ORACLE_PWD y OPS_RO_PWD
@@ -2090,19 +2105,33 @@ Alcance: la búsqueda de contraseñas comprobó los dos valores
 actuales; no constituye una auditoría exhaustiva de otros
 secretos ni de contraseñas anteriores.
 
-### Pendientes para el cierre definitivo
+### Estado de la entrega y cierre
 
-- Confirmar con el profesor el escenario y el objeto del reto H.
-- Mantener declarados los límites de las medidas externas
-  de los simulacros A y B en la revisión de la entrega.
-- Completar la revisión final de documentación y evidencias.
-- Publicar la rama y preparar el Pull Request en borrador.
-- Resolver los pendientes de revisión antes del merge.
-- Crear la etiqueta lab5-final y la copia final de la base
-  cuando corresponda cerrar definitivamente el laboratorio.
+La rama está publicada y el Pull Request #8 está creado
+contra main. Se procede a completar el flujo de entrega
+con la excepción del reto H independiente expresamente
+declarada.
+
+Los límites de las medidas externas de los simulacros A y B
+se mantienen documentados.
 
 Comprobaciones ya realizadas:
 - Control de seguridad específico de archivos e historial,
   con el alcance documentado.
-- Verificación técnica final posterior a los experimentos:
+- Verificación técnica posterior a los experimentos:
   TODO OK y código de salida 0.
+- Repeticiones de A y B con captura externa, sin modificar
+  los scripts originales.
+- Preguntas 1–22 y tabla S1–S26 revisadas.
+- Verificación técnica previa al merge del 23 de noviembre:
+  TODO OK; verificador y captura con código 0.
+
+Pasos de cierre todavía pendientes:
+- Revisar y publicar los ajustes documentales finales.
+- Actualizar el PR con el alcance de entrega y completar
+  su revisión, sin atribuir una aprobación inexistente.
+- Realizar el merge si no hay bloqueos.
+- Registrar la resolución del issue #7 con la excepción
+  de H visible.
+- Crear la etiqueta lab5-final y realizar y verificar
+  la copia final de la base.
