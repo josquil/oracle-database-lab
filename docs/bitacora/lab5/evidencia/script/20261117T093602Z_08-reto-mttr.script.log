@@ -1,0 +1,47 @@
+
+Session altered.
+
+===== Preparacion: checkpoint inicial =====
+
+System altered.
+
+===== A. Antes de la carga =====
+
+INSTANTE								    ESTIMATED_MTTR ACTUAL_REDO_BLKS RECOVERY_ESTIMATED_IOS
+--------------------------------------------------------------------------- -------------- ---------------- ----------------------
+17-NOV-26 09.36.03.447875 AM +00:00							11		  0			 7
+
+1 row selected.
+
+
+Session altered.
+
+===== UPDATE de hasta 20000 clientes y COMMIT =====
+
+PL/SQL procedure successfully completed.
+
+
+Commit complete.
+
+
+Session altered.
+
+===== B. Despues de la carga, sin checkpoint manual intermedio =====
+
+INSTANTE								    ESTIMATED_MTTR ACTUAL_REDO_BLKS RECOVERY_ESTIMATED_IOS
+--------------------------------------------------------------------------- -------------- ---------------- ----------------------
+17-NOV-26 09.36.03.696302 AM +00:00							11		  0		       413
+
+1 row selected.
+
+===== C. Checkpoint final y comprobacion =====
+
+System altered.
+
+
+INSTANTE								    ESTIMATED_MTTR ACTUAL_REDO_BLKS RECOVERY_ESTIMATED_IOS
+--------------------------------------------------------------------------- -------------- ---------------- ----------------------
+17-NOV-26 09.36.03.863935 AM +00:00							11		  0			 3
+
+1 row selected.
+

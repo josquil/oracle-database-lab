@@ -1,0 +1,15 @@
+
+Session altered.
+
+== Filas por bloque: recuento directo ==
+
+BLOQUES_CON_FILAS FILAS_TOTALES     MINIMO	MEDIA	  MAXIMO
+----------------- ------------- ---------- ---------- ----------
+	     5220	1000000 	 2     191.57	     200
+
+== Comparacion con las estadisticas ==
+
+  NUM_ROWS     BLOCKS BFR_ESTADISTICO
+---------- ---------- ---------------
+   1000000	 5320	       187.97
+
